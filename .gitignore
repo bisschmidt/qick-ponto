@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Env & secrets (NUNCA commitar)
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.key
+*.pem
+*.p7s
+
+# Deploy / tooling local
+.vercel
+.railway
+
+# OS / editor
+.DS_Store
+*.log

@@ -1,0 +1,19 @@
+{
+  "name": "qick-ponto",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter './apps/*' dev",
+    "build": "pnpm --filter './packages/*' build && pnpm --filter './apps/*' build",
+    "test": "pnpm --recursive test",
+    "db:migrate": "pnpm --filter @qick/db migrate:dev",
+    "db:generate": "pnpm --filter @qick/db generate",
+    "db:studio": "pnpm --filter @qick/db studio"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

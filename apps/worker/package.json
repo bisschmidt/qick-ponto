@@ -1,0 +1,26 @@
+{
+  "name": "@qick/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "@qick/afd": "workspace:*",
+    "@qick/db": "workspace:*",
+    "@qick/pdf": "workspace:*",
+    "@qick/types": "workspace:*",
+    "bullmq": "^5.0.0",
+    "dotenv": "^16.0.0",
+    "ioredis": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

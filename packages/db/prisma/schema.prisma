@@ -1,0 +1,872 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum RegimeTrabalhista {
+  CLT
+  APRENDIZ
+  ESTAGIO
+  PJ
+}
+
+enum TipoJornada {
+  PADRAO_CLT         // 8h/44h
+  CALL_CENTER_NR17   // 6h/36h
+  CALL_CENTER_COMP   // 7h12/36h compensado — requer ACT
+  JORNADA_12_36      // requer ACT Art. 59-A
+  JORNADA_24_48      // requer ACT Art. 59-A
+  PERSONALIZADA
+}
+
+enum PerfilAcesso {
+  ADMIN_TENANT
+  GESTOR
+  RH_DP
+  COLABORADOR
+  AUDITOR
+}
+
+enum TipoMarcacao {
+  ENTRADA
+  SAIDA_PAUSA_NR17
+  RETORNO_PAUSA_NR17
+  SAIDA_INTERVALO
+  RETORNO_INTERVALO
+  SAIDA_PAUSA_FISIOLOGICA
+  RETORNO_PAUSA_FISIOLOGICA
+  SAIDA_PAUSA_CRITICA
+  RETORNO_PAUSA_CRITICA
+  SAIDA
+  ENTRADA_HE
+  SAIDA_HE
+  ENTRADA_COMPENSACAO
+  SAIDA_COMPENSACAO
+}
+
+enum CanalMarcacao {
+  TOTEM
+  APP_MOBILE
+  WEB
+}
+
+enum TipoEvento {
+  INCLUSAO
+  ALTERACAO
+  EXCLUSAO
+}
+
+enum StatusPonto {
+  PRESENTE
+  FALTA
+  ATESTADO
+  AFASTAMENTO_INSS
+  FOLGA
+  FERIAS
+  DSR
+  SUSPENSAO
+  LICENCA_MATERNIDADE
+  LICENCA_PATERNIDADE
+  LICENCA_NAO_REMUNERADA
+  LICENCA_OUTRAS
+  FERIADO
+  COMPENSADO
+  A_COMPENSAR
+  PAUSA_NR17
+  PAUSA_FISIOLOGICA
+  PAUSA_OCORRENCIA_CRITICA
+}
+
+enum TipoFeriado {
+  NACIONAL
+  ESTADUAL
+  MUNICIPAL
+  FACULTATIVO
+}
+
+enum ModalidadeBancoHoras {
+  ACORDO_INDIVIDUAL   // até 6 meses
+  ACT_CCT             // até 12 meses
+  COMPENSACAO_MENSAL  // mesmo mês
+}
+
+enum StatusHE {
+  PENDENTE_ACEITE
+  ACEITA
+  RECUSADA
+  CANCELADA
+}
+
+// Ciclo de vida de uma HE planejada/compensação (camada de gestão)
+enum StatusHeExtra {
+  PENDENTE_ACEITE     // lançada pelo gestor, aguardando aceite do colaborador
+  AGUARDANDO_MARCACAO // aceita (ou compensação aprovada) → ponto de HE a bater
+  REALIZADA           // colaborador bateu entrada+saída da HE
+  FALTA_HE            // janela passou sem marcação (controle, sem desconto)
+  RECUSADA            // colaborador recusou a HE planejada
+  CANCELADA
+}
+
+enum StatusCompensacao {
+  PENDENTE_GESTOR
+  APROVADA
+  REPROVADA
+  CANCELADA
+}
+
+enum StatusAjuste {
+  PENDENTE_GESTOR
+  APROVADO_GESTOR
+  REPROVADO_GESTOR
+  PENDENTE_RH
+  APROVADO_RH
+  REPROVADO_RH
+}
+
+// ─── M1: CADASTRO & ESCALAS ──────────────────────────────────────────────────
+
+model Tenant {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  razao_social String   @db.VarChar(150)
+  plano        String   @default("pilot") @db.VarChar(50)
+  ip_whitelist String[] @default([])
+  ativo        Boolean  @default(true)
+
+  cnpjs           CnpjEstabelecimento[]
+  colaboradores   Colaborador[]
+  jornadas        Jornada[]
+  escalas         Escala[]
+  feriados        Feriado[]
+  acts            Act[]
+  motivos_ajuste  MotivoAjuste[]
+  integracao_pslz IntegracaoPslz?
+  webhook_logs    WebhookPslzLog[]
+  config_export_folha   ConfigExportacaoFolha[]
+  mapeamento_eventos    MapeamentoEventoFolha[]
+  exportacoes_folha     ExportacaoFolhaLog[]
+  config_he             ConfigHe?
+}
+
+model CnpjEstabelecimento {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id    String @db.Uuid
+  cnpj         String @db.Char(14)
+  razao_social String @db.VarChar(150)
+  uf           String @db.Char(2)
+  fuso_horario String @db.VarChar(50) // ex.: "America/Sao_Paulo"
+  cno_caepf    String? @db.VarChar(14)
+  endereco     String @db.VarChar(300)
+  ativo        Boolean @default(true)
+
+  // NSR sequencial por CNPJ — nunca global
+  nsr_contador BigInt @default(1)
+
+  tenant        Tenant        @relation(fields: [tenant_id], references: [id])
+  colaboradores Colaborador[]
+  marcacoes     Marcacao[]
+  afd_registros AfdRegistro[]
+
+  @@unique([cnpj])
+  @@index([tenant_id])
+}
+
+model Colaborador {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id    String @db.Uuid
+  cnpj_estab_id String @db.Uuid
+
+  // Campos obrigatórios M1.2
+  nome_completo    String @db.VarChar(100)
+  cpf              String @db.Char(11)
+  pis_nit          String @db.Char(11)
+  matricula        String @db.VarChar(50)
+  regime           RegimeTrabalhista
+  data_admissao    DateTime @db.Date
+  centro_custo     String @db.VarChar(100)
+  operacao_cliente String @db.VarChar(100)
+
+  // Campos opcionais
+  email_corporativo String? @db.VarChar(255)
+  whatsapp          String? @db.VarChar(20)
+
+  ativo              Boolean  @default(true)
+  data_desligamento  DateTime? @db.Date
+  onboarding_ok      Boolean  @default(false) // true após aceite LGPD
+
+  // Hierarquia: gestor direto (self-referência)
+  gestor_id          String? @db.Uuid
+
+  tenant        Tenant              @relation(fields: [tenant_id], references: [id])
+  cnpj_estab    CnpjEstabelecimento @relation(fields: [cnpj_estab_id], references: [id])
+  gestor        Colaborador?        @relation("ColaboradorGestor", fields: [gestor_id], references: [id])
+  subordinados  Colaborador[]       @relation("ColaboradorGestor")
+  jornadas      ColaboradorJornada[]
+  aceite_lgpd   AceiteLgpd?
+  usuario       Usuario?
+  marcacoes         Marcacao[]
+  hes_programadas   HeExtra[]
+  compensacoes      SolicitacaoCompensacao[]
+  ajustes           Ajuste[]
+  jornadas_apuradas JornadaApurada[]
+  espelhos_ponto    EspelhoPonto[]
+  banco_horas       BancoHoras[]
+  codigos_folha     ColaboradorCodigoFolha[]
+
+  @@unique([tenant_id, cpf])
+  @@unique([tenant_id, matricula])
+  @@index([tenant_id])
+  @@index([cnpj_estab_id])
+}
+
+// Histórico de jornadas do colaborador (com vigência)
+model ColaboradorJornada {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at     DateTime @default(now())
+
+  colaborador_id String   @db.Uuid
+  jornada_id     String   @db.Uuid
+  data_inicio    DateTime @db.Date
+  data_fim       DateTime? @db.Date
+  usuario_id     String   @db.Uuid // quem fez a alteração
+
+  colaborador Colaborador @relation(fields: [colaborador_id], references: [id])
+  jornada     Jornada     @relation(fields: [jornada_id], references: [id])
+
+  @@index([colaborador_id])
+}
+
+// Aceite LGPD — imutável, nunca deletado
+model AceiteLgpd {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at     DateTime @default(now())
+
+  colaborador_id String   @db.Uuid @unique
+  timestamp_aceite DateTime
+  ip               String @db.VarChar(45)
+  versao_aviso     String @db.VarChar(20) // versão do texto apresentado
+
+  colaborador Colaborador @relation(fields: [colaborador_id], references: [id])
+}
+
+model Usuario {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  colaborador_id String   @db.Uuid @unique
+  tenant_id      String   @db.Uuid
+  perfil         PerfilAcesso
+  senha_hash     String?  @db.VarChar(255)
+  ativo          Boolean  @default(true)
+
+  onboarding_token         String?   @unique @db.VarChar(64)
+  onboarding_token_expires DateTime?
+
+  colaborador Colaborador @relation(fields: [colaborador_id], references: [id])
+
+  @@index([tenant_id])
+}
+
+// ─── M1.3: JORNADAS ──────────────────────────────────────────────────────────
+
+model Jornada {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id  String @db.Uuid
+  nome       String @db.VarChar(100)
+  tipo       TipoJornada
+  ativo      Boolean @default(true)
+
+  // Horários principais
+  hora_inicio String @db.VarChar(5) // "HH:MM"
+  hora_fim    String @db.VarChar(5)
+  dias_semana Int[]  // 0=Dom..6=Sab (array de inteiros)
+  valida_feriado Boolean @default(false)
+
+  // Horário alternativo para sab/dom (quando diferente)
+  hora_inicio_sab String? @db.VarChar(5)
+  hora_fim_sab    String? @db.VarChar(5)
+  hora_inicio_dom String? @db.VarChar(5)
+  hora_fim_dom    String? @db.VarChar(5)
+
+  // Tolerâncias em minutos (M1.3.3)
+  tolerancia_atraso_entrada     Int @default(5)
+  tolerancia_atraso_intervalo   Int @default(5)
+  tolerancia_antec_saida        Int @default(5)
+  tolerancia_antec_inicio_interv Int @default(5)
+
+  // Janela de marcação em minutos antes do início
+  janela_marcacao_min Int @default(15)
+
+  // Intervalo mínimo entre jornadas (padrão 11h = 660 min)
+  intervalo_minimo_jornadas Int @default(660)
+
+  // Requer ACT?
+  requer_act Boolean @default(false)
+  ciente_art59a Boolean @default(false) // obrigatório para 12/36 e 24/48
+
+  tenant    Tenant   @relation(fields: [tenant_id], references: [id])
+  pausas    PausaConfig[]
+  colaboradores ColaboradorJornada[]
+  escalas   EscalaJornada[]
+
+  @@index([tenant_id])
+}
+
+model PausaConfig {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  jornada_id String @db.Uuid
+  nome       String @db.VarChar(100) // ex.: "1ª Pausa NR-17", "Intervalo", "Lanche"
+  ordem      Int    // posição na sequência da jornada
+  duracao_min Int   // duração mínima em minutos
+  eh_nr17    Boolean @default(false) // sujeita a validação hard
+  eh_intervalo_refeicao Boolean @default(false)
+  computa_jornada Boolean @default(true) // intervalo refeição default false
+
+  // Janela: minutos a partir da hora de início
+  janela_inicio_min Int? // null = sem restrição
+  janela_fim_min    Int? // minutos antes do fim da jornada
+
+  jornada Jornada @relation(fields: [jornada_id], references: [id])
+
+  @@index([jornada_id])
+}
+
+// ─── M1.4: ESCALAS ───────────────────────────────────────────────────────────
+
+model Escala {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id String @db.Uuid
+  nome      String @db.VarChar(100)
+  ativo     Boolean @default(true)
+
+  tenant  Tenant  @relation(fields: [tenant_id], references: [id])
+  jornadas EscalaJornada[]
+
+  @@index([tenant_id])
+}
+
+model EscalaJornada {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  escala_id  String @db.Uuid
+  jornada_id String @db.Uuid
+  dia_semana Int    // 0=Dom..6=Sab; -1 = feriado
+
+  escala  Escala  @relation(fields: [escala_id], references: [id])
+  jornada Jornada @relation(fields: [jornada_id], references: [id])
+
+  @@unique([escala_id, dia_semana])
+}
+
+// ─── M1.5: FERIADOS ──────────────────────────────────────────────────────────
+
+model Feriado {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  tenant_id  String? @db.Uuid // null = nacional (mantido pelo sistema)
+  nome       String @db.VarChar(100)
+  tipo       TipoFeriado
+  uf         String? @db.Char(2) // null = nacional
+  municipio  String? @db.VarChar(100)
+  data_inicio DateTime @db.Date
+  data_fim    DateTime @db.Date // igual a data_inicio para feriado de 1 dia
+
+  tenant Tenant? @relation(fields: [tenant_id], references: [id])
+
+  @@index([tenant_id])
+  @@index([uf, data_inicio])
+}
+
+// ─── M1.6: ACT ───────────────────────────────────────────────────────────────
+
+model Act {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id   String @db.Uuid
+  sindicato   String @db.VarChar(200)
+  uf          String @db.Char(2)
+  data_inicio DateTime @db.Date
+  data_fim    DateTime @db.Date
+  ativo       Boolean @default(true)
+
+  // Exceções parametrizáveis
+  tolerancia_ampliada_min       Int? // se null, usa padrão legal
+  banco_horas_meses             Int? // 6 ou 12
+  periodicidade_fechamento      String? // "quinzenal" | "mensal"
+  comprovante_eletronico        Boolean @default(false)
+  he_comum_aliquota             Decimal @default(50) @db.Decimal(5, 2) // %
+  he_feriado_aliquota           Decimal @default(100) @db.Decimal(5, 2)
+  he_dsr_aliquota               Decimal @default(100) @db.Decimal(5, 2)
+  adicional_noturno_aliquota    Decimal @default(20) @db.Decimal(5, 2)
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@index([tenant_id])
+}
+
+// ─── M2: MARCAÇÃO DE PONTO ───────────────────────────────────────────────────
+
+// Registro bruto — imutável após inserção
+model Marcacao {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  tenant_id     String @db.Uuid
+  cnpj_estab_id String @db.Uuid
+  colaborador_id String @db.Uuid
+
+  nsr              BigInt  // sequencial por CNPJ — imutável
+  timestamp_marcacao DateTime // quando o colaborador bateu
+  timestamp_gravacao DateTime @default(now()) // quando o sistema persistiu
+  tipo             TipoMarcacao
+  canal            CanalMarcacao
+  hash_sha256      String @db.Char(64) // SHA-256 dos campos 1-7 do tipo 7
+
+  // Antifraude
+  imagem_ref       String? @db.VarChar(500) // referência à imagem no S3
+  latitude         Decimal? @db.Decimal(10, 8)
+  longitude        Decimal? @db.Decimal(11, 8)
+  fora_da_area     Boolean @default(false)
+  fora_da_janela   Boolean @default(false)
+
+  // CRPT
+  crpt_gerado      Boolean @default(false)
+  crpt_url         String? @db.VarChar(500)
+
+  cnpj_estab  CnpjEstabelecimento @relation(fields: [cnpj_estab_id], references: [id])
+  colaborador Colaborador @relation(fields: [colaborador_id], references: [id])
+  ajustes     Ajuste[]
+
+  @@unique([cnpj_estab_id, nsr])
+  @@index([tenant_id, colaborador_id, timestamp_marcacao])
+  @@index([cnpj_estab_id, timestamp_marcacao])
+}
+
+// ─── M2.8: HE PROGRAMADA ─────────────────────────────────────────────────────
+
+model HeExtra {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id      String @db.Uuid
+  colaborador_id String @db.Uuid
+  gestor_id      String @db.Uuid
+  data           DateTime @db.Date
+  hora_inicio    String @db.VarChar(5)
+  hora_fim       String @db.VarChar(5)
+  tipo           String @db.VarChar(20) // "REMUNERADA" | "COMPENSACAO"
+  status         StatusHeExtra @default(PENDENTE_ACEITE)
+  motivo         String? @db.VarChar(300)
+  timestamp_aceite DateTime?
+
+  // Vínculo com uma solicitação de compensação (null = HE planejada avulsa do gestor)
+  compensacao_id String? @db.Uuid
+
+  // Lastro AFD: marcações reais batidas pelo colaborador
+  entrada_marcacao_id String? @db.Uuid
+  saida_marcacao_id   String? @db.Uuid
+
+  colaborador Colaborador @relation(fields: [colaborador_id], references: [id])
+  compensacao SolicitacaoCompensacao? @relation(fields: [compensacao_id], references: [id])
+
+  @@index([tenant_id, colaborador_id, data])
+  @@index([tenant_id, status])
+  @@index([compensacao_id])
+}
+
+// Configuração de limites de HE — uma por tenant (igual para todos)
+model ConfigHe {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id  String @unique @db.Uuid
+  max_min_dia                    Int @default(120)  // 2h
+  max_min_semana                 Int @default(600)  // 10h
+  max_min_mes                    Int @default(2400) // 40h
+  intervalo_min_apos_jornada_min Int @default(60)   // gap mínimo jornada→HE (CLT 11h interjornada à parte)
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+}
+
+// Solicitação de compensação de uma falta futura (pelo colaborador, aprovada pelo líder)
+model SolicitacaoCompensacao {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id      String @db.Uuid
+  colaborador_id String @db.Uuid
+  solicitante_id String @db.Uuid
+  data_falta     DateTime @db.Date
+  motivo         String @db.VarChar(300)
+  status         StatusCompensacao @default(PENDENTE_GESTOR)
+
+  gestor_id  String? @db.Uuid
+  gestor_obs String? @db.VarChar(300)
+  gestor_at  DateTime?
+
+  // Reconciliação na data da falta
+  reconciliada_at DateTime?
+  resultado       String? @db.VarChar(20) // "ABONADA_TOTAL" | "PARCIAL" | "NAO_COMPENSADA"
+
+  colaborador Colaborador @relation(fields: [colaborador_id], references: [id])
+  hes         HeExtra[]
+
+  @@index([tenant_id, colaborador_id, data_falta])
+  @@index([tenant_id, status])
+}
+
+// ─── M5: BANCO DE HORAS ──────────────────────────────────────────────────────
+
+model BancoHoras {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  tenant_id      String @db.Uuid
+  colaborador_id String @db.Uuid
+  data_referencia DateTime @db.Date
+  minutos        Int    // positivo = crédito, negativo = débito
+  descricao      String @db.VarChar(200)
+  modalidade     ModalidadeBancoHoras
+  data_vencimento DateTime @db.Date
+  compensado     Boolean @default(false)
+  marcacao_ref   String? @db.Uuid // NSR de origem quando aplicável
+
+  colaborador Colaborador @relation(fields: [colaborador_id], references: [id])
+
+  @@index([tenant_id, colaborador_id, data_referencia])
+  @@index([tenant_id, colaborador_id, data_vencimento])
+}
+
+// ─── M9: GESTÃO DE EXCEÇÕES ──────────────────────────────────────────────────
+
+model MotivoAjuste {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  tenant_id   String @db.Uuid
+  descricao   String @db.VarChar(200)
+  ativo       Boolean @default(true)
+  flag_desconto_va  Boolean @default(false)
+  flag_desconto_vt  Boolean @default(false)
+
+  tenant  Tenant   @relation(fields: [tenant_id], references: [id])
+  ajustes Ajuste[]
+
+  @@index([tenant_id])
+}
+
+model Ajuste {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id       String @db.Uuid
+  colaborador_id  String @db.Uuid
+  solicitante_id  String @db.Uuid
+  marcacao_ref_id String? @db.Uuid // NSR que está sendo corrigido
+  motivo_id       String @db.Uuid
+  status          StatusAjuste @default(PENDENTE_GESTOR)
+
+  // O que está sendo ajustado
+  data_ponto      DateTime @db.Date
+  tipo_ajuste     String @db.VarChar(50) // "PAR_QUEBRADO" | "ESQUECIMENTO" | etc.
+  novo_timestamp  DateTime?
+  novo_tipo       TipoMarcacao?
+  justificativa   String @db.VarChar(500)
+
+  // Aprovações
+  gestor_id       String? @db.Uuid
+  gestor_obs      String? @db.VarChar(300)
+  gestor_at       DateTime?
+  rh_id           String? @db.Uuid
+  rh_obs          String? @db.VarChar(300)
+  rh_at           DateTime?
+
+  colaborador Colaborador  @relation(fields: [colaborador_id], references: [id])
+  marcacao    Marcacao?    @relation(fields: [marcacao_ref_id], references: [id])
+  motivo      MotivoAjuste @relation(fields: [motivo_id], references: [id])
+
+  @@index([tenant_id, colaborador_id, data_ponto])
+  @@index([tenant_id, status])
+}
+
+// ─── M6: FECHAMENTO & ESPELHO ─────────────────────────────────────────────────
+
+model PeriodoFechamento {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id   String @db.Uuid
+  data_inicio DateTime @db.Date
+  data_fim    DateTime @db.Date
+  fechado     Boolean @default(false)
+  fechado_at  DateTime?
+  fechado_por String? @db.Uuid
+
+  espelhos EspelhoPonto[]
+
+  @@index([tenant_id, data_inicio])
+}
+
+model EspelhoPonto {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  tenant_id       String @db.Uuid
+  periodo_id      String @db.Uuid
+  colaborador_id  String @db.Uuid
+  pdf_url         String? @db.VarChar(500)
+
+  assinado           Boolean @default(false)
+  assinado_at        DateTime?
+  assinado_ip        String? @db.VarChar(45)
+  assinado_por_id    String? @db.Uuid  // colaborador_id de quem assinou
+  nao_manifestado    Boolean @default(false)
+  nao_manifestado_at DateTime?
+
+  periodo     PeriodoFechamento @relation(fields: [periodo_id], references: [id])
+  colaborador Colaborador       @relation(fields: [colaborador_id], references: [id])
+
+  @@unique([periodo_id, colaborador_id])
+  @@index([tenant_id, colaborador_id])
+}
+
+// ─── M4: APURAÇÃO & TRATAMENTO ───────────────────────────────────────────────
+
+// Resultado da apuração de cada dia de trabalho de um colaborador.
+// Imutável: correções criam novo registro (ver campo origem_ajuste_id).
+model JornadaApurada {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  tenant_id      String   @db.Uuid
+  colaborador_id String   @db.Uuid
+  data_referencia DateTime @db.Date // dia de referência (data da marcação de entrada)
+
+  // Horários reais
+  entrada_real DateTime?
+  saida_real   DateTime?
+
+  // Minutos calculados (todos inteiros não-negativos)
+  minutos_trabalhados      Int @default(0)
+  minutos_he_50            Int @default(0)
+  minutos_he_100           Int @default(0)
+  minutos_atraso           Int @default(0)
+  minutos_saida_antecipada Int @default(0)
+  minutos_ad_noturno       Int @default(0)    // minutos reais dentro de 22h–5h
+  minutos_hora_reduzida    Int @default(0)    // bônus de hora reduzida
+
+  // Pausas NR-17
+  pausas_nr17_concedidas Int     @default(0)
+  pausas_nr17_conformes  Boolean @default(false)
+
+  status    StatusPonto
+  eh_feriado Boolean @default(false)
+  eh_dsr     Boolean @default(false)
+
+  // Inconsistências enviadas para M9 (JSON array de strings)
+  inconsistencias Json @default("[]")
+
+  // Rastreabilidade
+  // Apuração automática = null; reprocessamento ou ajuste manual = ID da apuração anterior
+  origem_ajuste_id String? @db.Uuid
+
+  colaborador Colaborador @relation(fields: [colaborador_id], references: [id])
+
+  @@unique([colaborador_id, data_referencia])
+  @@index([tenant_id, colaborador_id, data_referencia])
+  @@index([tenant_id, data_referencia])
+  @@index([tenant_id, status])
+}
+
+// ─── M7: AFD / AEJ ───────────────────────────────────────────────────────────
+
+// Log de cada geração de AFD/AEJ
+model GeracaoArquivoFiscal {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  tenant_id     String @db.Uuid
+  cnpj_estab_id String @db.Uuid
+  tipo          String @db.VarChar(3) // "AFD" | "AEJ"
+  data_inicio   DateTime @db.Date
+  data_fim      DateTime @db.Date
+  solicitante_id String @db.Uuid
+  arquivo_url   String? @db.VarChar(500)
+  assinatura_url String? @db.VarChar(500) // .p7s
+  concluido     Boolean @default(false)
+  erro          String? @db.VarChar(500)
+
+  @@index([tenant_id, cnpj_estab_id])
+}
+
+// Registro bruto que vai para o AFD (espelho do que foi gravado)
+model AfdRegistro {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  cnpj_estab_id String @db.Uuid
+  nsr           BigInt
+  tipo_registro Int    // 1=cabeçalho, 2=empresa, 5=colaborador, 6=evento, 7=marcação
+  conteudo_raw  String // linha completa do AFD antes da assinatura (sem CRLF)
+
+  cnpj_estab CnpjEstabelecimento @relation(fields: [cnpj_estab_id], references: [id])
+
+  @@unique([cnpj_estab_id, nsr])
+  @@index([cnpj_estab_id, tipo_registro])
+}
+
+// ─── M8: INTEGRAÇÃO PSLZ PAY ─────────────────────────────────────────────────
+
+// Configuração da integração por tenant
+model IntegracaoPslz {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id    String  @unique @db.Uuid
+  endpoint_url String  @db.VarChar(500)
+  // api_key armazenado CRIPTOGRAFADO — nunca em plain text no banco
+  api_key_enc  String  @db.VarChar(500)
+  // Secret para validar eventos recebidos da PSLZ (HMAC-SHA256)
+  webhook_secret_enc String @db.VarChar(500)
+  ativo        Boolean @default(true)
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+}
+
+// Log de eventos enviados e recebidos (idempotência + auditoria)
+model WebhookPslzLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  tenant_id  String @db.Uuid
+  direcao    String @db.VarChar(6)  // "SAIDA" | "ENTRADA"
+  evento     String @db.VarChar(100) // ex.: "folha.eventos_ponto", "colaborador.desligado"
+  payload    Json
+  status     String @db.VarChar(10) // "ENVIADO" | "ERRO" | "RECEBIDO"
+  tentativas Int    @default(1)
+  resposta   Json?
+  erro_msg   String? @db.VarChar(500)
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@index([tenant_id, evento, created_at])
+  @@index([tenant_id, status])
+}
+
+// ─── M12: CENTRAL DE EXPORTAÇÕES ─────────────────────────────────────────────
+
+enum SistemaFolha {
+  QUESTOR
+}
+
+// Tipos de evento de folha gerados pela apuração do Qick Ponto.
+// O usuário mapeia cada um para o código equivalente no sistema de folha externo.
+enum EventoFolhaTipo {
+  HE_50              // horas extras 50%
+  HE_100             // horas extras 100% (DSR/feriado)
+  ADICIONAL_NOTURNO  // adicional noturno
+  FALTA              // falta injustificada (em dias)
+  FALTA_DSR          // DSR descontado por falta
+  ATRASO             // atrasos + saídas antecipadas
+  HORA_REDUZIDA      // bônus de hora noturna reduzida
+}
+
+// Configuração por tenant + sistema de folha
+model ConfigExportacaoFolha {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id      String       @db.Uuid
+  sistema        SistemaFolha
+  // Código da empresa no sistema externo (ex.: 0001 no Questor)
+  codigo_empresa String       @db.VarChar(20)
+  ativo          Boolean      @default(true)
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@unique([tenant_id, sistema])
+}
+
+// Mapeamento de-para de eventos do Qick → código no sistema externo
+model MapeamentoEventoFolha {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant_id       String          @db.Uuid
+  sistema         SistemaFolha
+  evento          EventoFolhaTipo
+  codigo_externo  String          @db.VarChar(20) // ex.: "0075" no Questor
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@unique([tenant_id, sistema, evento])
+}
+
+// Código do colaborador no sistema externo (extensível para vários sistemas)
+model ColaboradorCodigoFolha {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  colaborador_id String       @db.Uuid
+  sistema        SistemaFolha
+  codigo         String       @db.VarChar(20)
+
+  colaborador Colaborador @relation(fields: [colaborador_id], references: [id])
+
+  @@unique([colaborador_id, sistema])
+}
+
+// Log de cada arquivo gerado
+model ExportacaoFolhaLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime @default(now())
+
+  tenant_id        String       @db.Uuid
+  sistema          SistemaFolha
+  cnpj_estab_id    String       @db.Uuid
+  periodo_id       String?      @db.Uuid
+  competencia_ini  DateTime     @db.Date
+  competencia_fim  DateTime     @db.Date
+  solicitante_id   String       @db.Uuid
+  total_linhas     Int
+  nome_arquivo     String       @db.VarChar(200)
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+
+  @@index([tenant_id, sistema, created_at])
+}
