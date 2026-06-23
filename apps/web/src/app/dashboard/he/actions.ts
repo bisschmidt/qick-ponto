@@ -30,6 +30,31 @@ export async function lancarHeAction(input: {
   }
 }
 
+export async function ajustarHeAction(
+  id: string,
+  input: { data?: string; hora_inicio: string; hora_fim: string },
+): Promise<Result> {
+  const session = await requireSession()
+  try {
+    await api.post(`/v1/he/${id}/ajustar`, input, session.token)
+    revalidatePath('/dashboard/he')
+    return ok()
+  } catch (err) {
+    return fail(err, 'Erro ao ajustar HE')
+  }
+}
+
+export async function cancelarHeAction(id: string): Promise<Result> {
+  const session = await requireSession()
+  try {
+    await api.post(`/v1/he/${id}/cancelar`, {}, session.token)
+    revalidatePath('/dashboard/he')
+    return ok()
+  } catch (err) {
+    return fail(err, 'Erro ao cancelar HE')
+  }
+}
+
 export async function aprovarCompensacaoAction(id: string): Promise<Result> {
   const session = await requireSession()
   try {

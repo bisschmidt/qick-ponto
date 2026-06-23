@@ -28,6 +28,14 @@ export const alterarCompensacaoSchema = z.object({
   dias: z.array(diaCompensacaoSchema).min(1),
 })
 
+export const ajustarHeSchema = z.object({
+  data: ymd.optional(),
+  hora_inicio: hhmm,
+  hora_fim: hhmm,
+})
+
+export const jornadaDoDiaQuerySchema = z.object({ data: ymd })
+
 export const obsSchema = z.object({ obs: z.string().min(1).max(300) })
 
 export const configHeSchema = z.object({

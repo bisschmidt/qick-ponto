@@ -4,8 +4,10 @@ import { configHeService } from './config-service.js'
 import { marcacaoHe } from './marcacao-he.js'
 import {
   lancarHeSchema,
+  ajustarHeSchema,
   solicitarCompensacaoSchema,
   alterarCompensacaoSchema,
+  jornadaDoDiaQuerySchema,
   obsSchema,
   configHeSchema,
   baterHeSchema,
@@ -62,6 +64,21 @@ export async function heRouter(app: FastifyInstance) {
     return reply.status(201).send(r)
   })
 
+  app.post('/he/:id/ajustar', authGestor, async (req) => {
+    const { id } = req.params as { id: string }
+    const b = ajustarHeSchema.parse(req.body)
+    return service.ajustarHe(req.jwtPayload.tenantId, req.jwtPayload.sub, req.jwtPayload.role, id, {
+      ...(b.data ? { data: b.data } : {}),
+      horaInicio: b.hora_inicio,
+      horaFim: b.hora_fim,
+    })
+  })
+
+  app.post('/he/:id/cancelar', authGestor, async (req) => {
+    const { id } = req.params as { id: string }
+    return service.cancelarHe(req.jwtPayload.tenantId, req.jwtPayload.sub, req.jwtPayload.role, id)
+  })
+
   app.post('/he/compensacoes/:id/aprovar', authGestor, async (req) => {
     const { id } = req.params as { id: string }
     return service.aprovarCompensacao(req.jwtPayload.tenantId, req.jwtPayload.sub, req.jwtPayload.role, id)
@@ -86,6 +103,11 @@ export async function heRouter(app: FastifyInstance) {
       service.listarMinhasCompensacoes(req.jwtPayload.sub, req.jwtPayload.tenantId),
     ])
     return { hes, compensacoes }
+  })
+
+  app.get('/he/jornada-do-dia', authColab, async (req) => {
+    const { data } = jornadaDoDiaQuerySchema.parse(req.query)
+    return service.infoCompensacaoData(req.jwtPayload.tenantId, req.jwtPayload.sub, data)
   })
 
   app.post('/he/:id/aceitar', authColab, async (req) => {

@@ -3,7 +3,10 @@ import { gestorService } from '../gestor/service.js'
 import { m5Service } from '../m5-banco-horas/service.js'
 import { configHeService } from './config-service.js'
 import { heRepository, janelaDia, janelaSemana, janelaMes } from './repository.js'
-import { duracaoMinutos, validarLancamentoHe, type LimitesHe } from './validacoes.js'
+import { duracaoMinutos, formatarMin, validarLancamentoHe, type LimitesHe } from './validacoes.js'
+
+// HE planejada avulsa só pode ser cancelada/ajustada enquanto não foi batida
+const EDITAVEL = ['PENDENTE_ACEITE', 'AGUARDANDO_MARCACAO']
 
 interface DiaCompensacao {
   data: string // YYYY-MM-DD
@@ -60,6 +63,16 @@ export function heService(db: PrismaClient) {
       minutosLancadosSemana: minSemana,
       minutosLancadosMes: minMes,
     })
+  }
+
+  // Minutos da jornada a compensar numa falta; valida que é dia de escala
+  async function exigidoDaFalta(tenantId: string, colaboradorId: string, dataFaltaStr: string): Promise<number> {
+    const dataFalta = new Date(`${dataFaltaStr}T00:00:00Z`)
+    const jornada = await repo.jornadaVigente(colaboradorId, dataFalta)
+    if (!jornada) throw { statusCode: 422, message: 'Colaborador sem jornada vigente na data da falta' }
+    const ehEscala = (jornada.dias_semana as number[]).includes(dataFalta.getUTCDay())
+    if (!ehEscala) throw { statusCode: 422, message: 'A data da falta não é um dia de trabalho na escala — não há jornada a compensar' }
+    return duracaoMinutos(jornada.hora_inicio, jornada.hora_fim)
   }
 
   // Destino de uma HE realizada: COMPENSACAO → banco; REMUNERADA → JornadaApurada (folha)
@@ -172,7 +185,64 @@ export function heService(db: PrismaClient) {
       return db.heExtra.update({ where: { id: heId }, data: { status: 'RECUSADA' } })
     },
 
+    // ── Cancelar / ajustar HE planejada (gestor) ─────────────────────────────
+    async heEditavelDoGestor(tenantId: string, gestorId: string, role: string, heId: string) {
+      const ids = await gestor.colaboradoresVisiveis(tenantId, gestorId, role)
+      const he = await db.heExtra.findFirst({ where: { id: heId, tenant_id: tenantId } })
+      if (!he) throw { statusCode: 404, message: 'HE não encontrada' }
+      if (!ids.includes(he.colaborador_id)) throw { statusCode: 403, message: 'Sem permissão sobre este colaborador' }
+      if (he.compensacao_id) throw { statusCode: 422, message: 'HE de compensação — gerencie pelo fluxo de compensação' }
+      if (!EDITAVEL.includes(he.status)) throw { statusCode: 422, message: 'Só é possível alterar HE que ainda não foi realizada' }
+      return he
+    },
+
+    async cancelarHe(tenantId: string, gestorId: string, role: string, heId: string) {
+      await this.heEditavelDoGestor(tenantId, gestorId, role, heId)
+      return db.heExtra.update({ where: { id: heId }, data: { status: 'CANCELADA' } })
+    },
+
+    async ajustarHe(
+      tenantId: string,
+      gestorId: string,
+      role: string,
+      heId: string,
+      campos: { data?: string; horaInicio: string; horaFim: string },
+    ) {
+      const he = await this.heEditavelDoGestor(tenantId, gestorId, role, heId)
+      const novaData = campos.data ? new Date(`${campos.data}T00:00:00Z`) : he.data
+      const check = await checarRegras(tenantId, he.colaborador_id, novaData, campos.horaInicio, campos.horaFim, heId)
+      if (!check.ok) throw { statusCode: 422, message: check.erro }
+      // Alterar os termos exige novo aceite do colaborador (conformidade CLT)
+      return db.heExtra.update({
+        where: { id: heId },
+        data: {
+          data: novaData,
+          hora_inicio: campos.horaInicio,
+          hora_fim: campos.horaFim,
+          status: 'PENDENTE_ACEITE',
+          timestamp_aceite: null,
+        },
+      })
+    },
+
     // ── Compensação (colaborador solicita) ───────────────────────────────────
+    // Jornada a compensar numa data (alvo de horas) + teto diário de HE
+    async infoCompensacaoData(tenantId: string, colaboradorId: string, dataStr: string) {
+      const data = new Date(`${dataStr}T00:00:00Z`)
+      const cfg = await config.obter(tenantId)
+      const jornada = await repo.jornadaVigente(colaboradorId, data)
+      if (!jornada) {
+        return { eh_dia_escala: false, minutos: 0, hora_inicio: null, hora_fim: null, max_min_dia: cfg.max_min_dia }
+      }
+      const ehEscala = (jornada.dias_semana as number[]).includes(data.getUTCDay())
+      return {
+        eh_dia_escala: ehEscala,
+        minutos: ehEscala ? duracaoMinutos(jornada.hora_inicio, jornada.hora_fim) : 0,
+        hora_inicio: jornada.hora_inicio,
+        hora_fim: jornada.hora_fim,
+        max_min_dia: cfg.max_min_dia,
+      }
+    },
     async solicitarCompensacao(params: {
       tenantId: string
       colaboradorId: string
@@ -181,6 +251,16 @@ export function heService(db: PrismaClient) {
       dias: DiaCompensacao[]
     }) {
       if (params.dias.length === 0) throw { statusCode: 422, message: 'Informe ao menos um dia de compensação' }
+
+      // A falta precisa ser um dia de escala, e os dias devem cobrir a jornada inteira
+      const exigido = await exigidoDaFalta(params.tenantId, params.colaboradorId, params.dataFalta)
+      const totalProposto = params.dias.reduce((acc, d) => acc + duracaoMinutos(d.hora_inicio, d.hora_fim), 0)
+      if (totalProposto < exigido) {
+        throw {
+          statusCode: 422,
+          message: `Os dias somam ${formatarMin(totalProposto)}, mas a jornada a compensar é ${formatarMin(exigido)}. Adicione mais dias/horas.`,
+        }
+      }
 
       // Valida cada dia proposto (inclui exceção de sábado/dia sem escala)
       for (const dia of params.dias) {
@@ -264,6 +344,15 @@ export function heService(db: PrismaClient) {
       const solic = await this.buscarCompensacaoVisivel(tenantId, gestorId, role, solicitacaoId)
       if (solic.status !== 'PENDENTE_GESTOR') throw { statusCode: 422, message: 'Solicitação não está pendente' }
       if (dias.length === 0) throw { statusCode: 422, message: 'Informe ao menos um dia' }
+
+      const exigido = await exigidoDaFalta(tenantId, solic.colaborador_id, solic.data_falta.toISOString().slice(0, 10))
+      const totalProposto = dias.reduce((acc, d) => acc + duracaoMinutos(d.hora_inicio, d.hora_fim), 0)
+      if (totalProposto < exigido) {
+        throw {
+          statusCode: 422,
+          message: `Os dias somam ${formatarMin(totalProposto)}, mas a jornada a compensar é ${formatarMin(exigido)}.`,
+        }
+      }
 
       for (const dia of dias) {
         const data = new Date(`${dia.data}T00:00:00Z`)

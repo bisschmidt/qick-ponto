@@ -33,6 +33,26 @@ export async function recusarHeAction(id: string): Promise<Result> {
   }
 }
 
+interface JornadaDoDia {
+  eh_dia_escala: boolean
+  minutos: number
+  hora_inicio: string | null
+  hora_fim: string | null
+  max_min_dia: number
+}
+
+export async function getJornadaDoDiaAction(
+  data: string,
+): Promise<{ ok: true; info: JornadaDoDia } | { ok: false; error: string }> {
+  const session = await requireSession()
+  try {
+    const info = await api.get<JornadaDoDia>(`/v1/he/jornada-do-dia?data=${encodeURIComponent(data)}`, session.token)
+    return { ok: true, info }
+  } catch (err) {
+    return fail(err, 'Erro ao buscar jornada do dia') as { ok: false; error: string }
+  }
+}
+
 export async function solicitarCompensacaoAction(input: {
   data_falta: string
   motivo: string

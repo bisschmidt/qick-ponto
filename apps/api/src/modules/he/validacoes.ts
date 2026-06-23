@@ -98,7 +98,7 @@ export function validarLancamentoHe(p: ValidacaoHe): ResultadoValidacao {
   return { ok: true }
 }
 
-function formatarMin(min: number): string {
+export function formatarMin(min: number): string {
   const h = Math.floor(min / 60)
   const m = min % 60
   return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}`

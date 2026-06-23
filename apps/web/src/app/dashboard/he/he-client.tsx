@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +11,8 @@ import { Clock, Plus, X, Loader2, CheckCircle2, XCircle, Calendar, TrendingUp } 
 import { fmtDataCurta } from '@/lib/utils'
 import {
   lancarHeAction,
+  ajustarHeAction,
+  cancelarHeAction,
   aprovarCompensacaoAction,
   reprovarCompensacaoAction,
 } from './actions'
@@ -91,8 +94,8 @@ export function HeClient({ time, membros }: { time: HeTime; membros: Membro[] })
         <TabBtn active={aba === 'compensacoes'} onClick={() => setAba('compensacoes')}>Compensações ({totais.compensacoes})</TabBtn>
       </div>
 
-      {aba === 'aceite' && <ListaHe hes={time.aguardandoAceite} vazio="Nenhuma HE aguardando aceite" />}
-      {aba === 'marcacao' && <ListaHe hes={time.aguardandoMarcacao} vazio="Nenhuma HE aguardando marcação" />}
+      {aba === 'aceite' && <ListaHe hes={time.aguardandoAceite} vazio="Nenhuma HE aguardando aceite" editavel />}
+      {aba === 'marcacao' && <ListaHe hes={time.aguardandoMarcacao} vazio="Nenhuma HE aguardando marcação" editavel />}
       {aba === 'realizadas' && <ListaHe hes={time.realizadas} vazio="Nenhuma HE realizada" />}
       {aba === 'falta' && <ListaHe hes={time.faltaHe} vazio="Nenhuma Falta HE registrada" faltaHe />}
       {aba === 'compensacoes' && <ListaCompensacoes comps={time.compensacoesPendentes} />}
@@ -102,7 +105,7 @@ export function HeClient({ time, membros }: { time: HeTime; membros: Membro[] })
   )
 }
 
-function ListaHe({ hes, vazio, faltaHe }: { hes: HeView[]; vazio: string; faltaHe?: boolean }) {
+function ListaHe({ hes, vazio, faltaHe, editavel }: { hes: HeView[]; vazio: string; faltaHe?: boolean; editavel?: boolean }) {
   if (hes.length === 0) {
     return (
       <Card><CardContent className="py-10 flex flex-col items-center text-gray-400 text-sm">
@@ -125,30 +128,121 @@ function ListaHe({ hes, vazio, faltaHe }: { hes: HeView[]; vazio: string; faltaH
               <th className="text-left px-3 py-2 font-medium">Data</th>
               <th className="text-left px-3 py-2 font-medium">Horário</th>
               <th className="text-right px-3 py-2 font-medium">Tipo</th>
+              {editavel && <th className="text-right px-3 py-2 font-medium">Ações</th>}
             </tr>
           </thead>
           <tbody>
-            {hes.map((h) => {
-              const t = TIPO_BADGE[h.tipo] ?? { label: h.tipo, variant: 'secondary' as const }
-              return (
-                <tr key={h.id} className="border-b last:border-0">
-                  <td className="px-3 py-2.5">
-                    <p className="font-medium text-gray-900">{h.colaborador.nome_completo}</p>
-                    <p className="text-xs text-gray-400 font-mono">{h.colaborador.matricula}</p>
-                  </td>
-                  <td className="px-3 py-2.5 font-mono text-xs">{fmtDataCurta(h.data)}</td>
-                  <td className="px-3 py-2.5 font-mono text-xs">{h.hora_inicio}–{h.hora_fim}</td>
-                  <td className="px-3 py-2.5 text-right">
-                    <Badge variant={t.variant}>{t.label}</Badge>
-                    {h.compensacao_id && <Badge variant="secondary" className="ml-1">Compensação</Badge>}
-                  </td>
-                </tr>
-              )
-            })}
+            {hes.map((h) => <HeRow key={h.id} h={h} editavel={!!editavel && !h.compensacao_id} />)}
           </tbody>
         </table>
       </CardContent>
     </Card>
+  )
+}
+
+function HeRow({ h, editavel }: { h: HeView; editavel: boolean }) {
+  const router = useRouter()
+  const [ajustar, setAjustar] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+  const t = TIPO_BADGE[h.tipo] ?? { label: h.tipo, variant: 'secondary' as const }
+
+  function cancelar() {
+    if (!confirm('Cancelar esta HE? O colaborador não poderá mais marcá-la.')) return
+    startTransition(async () => {
+      const r = await cancelarHeAction(h.id)
+      if (!r.ok) { setErro(r.error); return }
+      router.refresh()
+    })
+  }
+
+  return (
+    <>
+      <tr className="border-b last:border-0">
+        <td className="px-3 py-2.5">
+          <p className="font-medium text-gray-900">{h.colaborador.nome_completo}</p>
+          <p className="text-xs text-gray-400 font-mono">{h.colaborador.matricula}</p>
+          {erro && <p className="text-xs text-red-600">{erro}</p>}
+        </td>
+        <td className="px-3 py-2.5 font-mono text-xs">{fmtDataCurta(h.data)}</td>
+        <td className="px-3 py-2.5 font-mono text-xs">{h.hora_inicio}–{h.hora_fim}</td>
+        <td className="px-3 py-2.5 text-right">
+          <Badge variant={t.variant}>{t.label}</Badge>
+          {h.compensacao_id && <Badge variant="secondary" className="ml-1">Compensação</Badge>}
+        </td>
+        {editavel && (
+          <td className="px-3 py-2.5 text-right whitespace-nowrap">
+            <button onClick={() => setAjustar(true)} disabled={pending}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Ajustar</button>
+            <button onClick={cancelar} disabled={pending}
+              className="text-xs text-red-600 hover:text-red-800 font-medium">
+              {pending ? '…' : 'Cancelar'}
+            </button>
+          </td>
+        )}
+      </tr>
+      {ajustar && createPortal(<ModalAjustarHe h={h} onClose={() => setAjustar(false)} />, document.body)}
+    </>
+  )
+}
+
+function ModalAjustarHe({ h, onClose }: { h: HeView; onClose: () => void }) {
+  const router = useRouter()
+  const [data, setData] = useState(h.data)
+  const [horaInicio, setHoraInicio] = useState(h.hora_inicio)
+  const [horaFim, setHoraFim] = useState(h.hora_fim)
+  const [erro, setErro] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  function salvar() {
+    setErro(null)
+    startTransition(async () => {
+      const r = await ajustarHeAction(h.id, { data, hora_inicio: horaInicio, hora_fim: horaFim })
+      if (!r.ok) { setErro(r.error); return }
+      onClose()
+      router.refresh()
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md">
+        <Card>
+          <CardContent className="p-0">
+            <div className="flex items-center justify-between p-4 border-b">
+              <p className="font-semibold text-gray-900">Ajustar HE — {h.colaborador.nome_completo}</p>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">Data</label>
+                <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-700">Início</label>
+                  <Input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-700">Fim</label>
+                  <Input type="time" value={horaFim} onChange={(e) => setHoraFim(e.target.value)} />
+                </div>
+              </div>
+              <p className="text-xs text-amber-600">
+                Alterar o horário exige que o colaborador aceite novamente antes de marcar.
+              </p>
+              {erro && <p className="text-sm text-red-600">{erro}</p>}
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" onClick={onClose} disabled={pending} className="flex-1">Cancelar</Button>
+                <Button onClick={salvar} disabled={pending} className="flex-1">
+                  {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Salvar
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   )
 }
 

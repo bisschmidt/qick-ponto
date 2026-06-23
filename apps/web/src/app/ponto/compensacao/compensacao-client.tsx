@@ -1,14 +1,24 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Clock, Plus, Trash2, Loader2, CheckCircle2, XCircle, CalendarDays } from 'lucide-react'
+import { Clock, Plus, Trash2, Loader2, CheckCircle2, XCircle, CalendarDays, AlertTriangle } from 'lucide-react'
 import { fmtDataCurta } from '@/lib/utils'
-import { aceitarHeAction, recusarHeAction, solicitarCompensacaoAction } from './actions'
+import { aceitarHeAction, recusarHeAction, solicitarCompensacaoAction, getJornadaDoDiaAction } from './actions'
+
+function minutosDe(hi: string, hf: string): number {
+  const [ai, bi] = hi.split(':').map(Number) as [number, number]
+  const [af, bf] = hf.split(':').map(Number) as [number, number]
+  return Math.max(0, (af * 60 + bf) - (ai * 60 + bi))
+}
+function fmtMin(min: number): string {
+  const h = Math.floor(min / 60), m = min % 60
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}`
+}
 
 interface MinhaHe {
   id: string
@@ -160,14 +170,33 @@ function CompCard({ comp }: { comp: MinhaCompensacao }) {
 
 interface DiaForm { data: string; hora_inicio: string; hora_fim: string }
 
+interface AlvoJornada { eh_dia_escala: boolean; minutos: number; max_min_dia: number }
+
 function FormCompensacao() {
   const router = useRouter()
   const [aberto, setAberto] = useState(false)
   const [dataFalta, setDataFalta] = useState('')
   const [motivo, setMotivo] = useState('')
   const [dias, setDias] = useState<DiaForm[]>([{ data: '', hora_inicio: '18:00', hora_fim: '20:00' }])
+  const [alvo, setAlvo] = useState<AlvoJornada | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+
+  // Busca a jornada a compensar quando a data da falta muda
+  useEffect(() => {
+    if (!dataFalta) { setAlvo(null); return }
+    let ativo = true
+    getJornadaDoDiaAction(dataFalta).then((r) => {
+      if (!ativo) return
+      setAlvo(r.ok ? { eh_dia_escala: r.info.eh_dia_escala, minutos: r.info.minutos, max_min_dia: r.info.max_min_dia } : null)
+    })
+    return () => { ativo = false }
+  }, [dataFalta])
+
+  const totalPlanejado = dias.reduce((acc, d) => acc + minutosDe(d.hora_inicio, d.hora_fim), 0)
+  const exigido = alvo?.minutos ?? 0
+  const faltam = Math.max(0, exigido - totalPlanejado)
+  const cobre = exigido > 0 && totalPlanejado >= exigido
 
   function setDia(i: number, campo: keyof DiaForm, valor: string) {
     setDias((ds) => ds.map((d, idx) => (idx === i ? { ...d, [campo]: valor } : d)))
@@ -178,8 +207,10 @@ function FormCompensacao() {
   function enviar() {
     setErro(null)
     if (!dataFalta) { setErro('Informe a data da falta'); return }
+    if (alvo && !alvo.eh_dia_escala) { setErro('A data da falta não é um dia de trabalho na sua escala'); return }
     if (motivo.trim().length < 3) { setErro('Descreva o motivo'); return }
     if (dias.some((d) => !d.data)) { setErro('Preencha a data de todos os dias'); return }
+    if (exigido > 0 && !cobre) { setErro(`Os dias somam ${fmtMin(totalPlanejado)}, mas você precisa compensar ${fmtMin(exigido)}. Faltam ${fmtMin(faltam)}.`); return }
     startTransition(async () => {
       const r = await solicitarCompensacaoAction({ data_falta: dataFalta, motivo: motivo.trim(), dias })
       if (!r.ok) { setErro(r.error); return }
@@ -215,33 +246,63 @@ function FormCompensacao() {
           </div>
         </div>
 
+        {/* Alvo: jornada a compensar */}
+        {alvo && !alvo.eh_dia_escala && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            Essa data não é um dia de trabalho na sua escala — não há jornada a compensar.
+          </div>
+        )}
+        {alvo && alvo.eh_dia_escala && (
+          <div className={`rounded-md border p-2.5 text-sm ${cobre ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Jornada a compensar</span>
+              <span className="font-semibold text-gray-900">{fmtMin(exigido)}</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-gray-600">Planejado nos dias abaixo</span>
+              <span className={`font-semibold ${cobre ? 'text-green-700' : 'text-blue-700'}`}>{fmtMin(totalPlanejado)}</span>
+            </div>
+            {!cobre && (
+              <p className="mt-1.5 text-xs text-blue-700">
+                Faltam <b>{fmtMin(faltam)}</b>. Máx {fmtMin(alvo.max_min_dia)} por dia de escala — adicione mais dias.
+              </p>
+            )}
+            {cobre && <p className="mt-1.5 text-xs text-green-700">Cobertura completa da jornada ✓</p>}
+          </div>
+        )}
+
         <div className="space-y-2">
           <label className="text-xs font-medium text-gray-700">Dias para compensar</label>
-          {dias.map((d, i) => (
-            <div key={i} className="flex items-end gap-2">
-              <div className="flex-1 space-y-1">
-                <Input type="date" value={d.data} onChange={(e) => setDia(i, 'data', e.target.value)} />
+          {dias.map((d, i) => {
+            const m = minutosDe(d.hora_inicio, d.hora_fim)
+            return (
+              <div key={i} className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <Input type="date" value={d.data} onChange={(e) => setDia(i, 'data', e.target.value)} />
+                </div>
+                <Input type="time" value={d.hora_inicio} onChange={(e) => setDia(i, 'hora_inicio', e.target.value)} className="w-24" />
+                <Input type="time" value={d.hora_fim} onChange={(e) => setDia(i, 'hora_fim', e.target.value)} className="w-24" />
+                <span className="text-xs text-gray-400 font-mono pb-2 w-10 text-right">{fmtMin(m)}</span>
+                {dias.length > 1 && (
+                  <button onClick={() => rmDia(i)} className="text-gray-400 hover:text-red-500 pb-2"><Trash2 className="h-4 w-4" /></button>
+                )}
               </div>
-              <Input type="time" value={d.hora_inicio} onChange={(e) => setDia(i, 'hora_inicio', e.target.value)} className="w-28" />
-              <Input type="time" value={d.hora_fim} onChange={(e) => setDia(i, 'hora_fim', e.target.value)} className="w-28" />
-              {dias.length > 1 && (
-                <button onClick={() => rmDia(i)} className="text-gray-400 hover:text-red-500 pb-2"><Trash2 className="h-4 w-4" /></button>
-              )}
-            </div>
-          ))}
+            )
+          })}
           <button onClick={addDia} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
             <Plus className="h-3 w-3" /> Adicionar dia
           </button>
         </div>
 
         <p className="text-xs text-gray-400">
-          Limite padrão de 2h por dia de trabalho. Em dias fora da sua escala (ex.: sábado) é possível
-          trabalhar mais. A solicitação vai para aprovação do líder.
+          Em dias fora da sua escala (ex.: sábado) é possível trabalhar mais. A solicitação vai para
+          aprovação do líder.
         </p>
         {erro && <p className="text-sm text-red-600">{erro}</p>}
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setAberto(false)} disabled={pending} className="flex-1">Cancelar</Button>
-          <Button onClick={enviar} disabled={pending} className="flex-1">
+          <Button onClick={enviar} disabled={pending || (exigido > 0 && !cobre) || (!!alvo && !alvo.eh_dia_escala)} className="flex-1">
             {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Enviar solicitação
           </Button>
         </div>
