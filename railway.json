@@ -5,6 +5,7 @@
     "buildCommand": "pnpm install && pnpm --filter @qick/db generate && pnpm --filter @qick/afd build && pnpm --filter @qick/pdf build && rm -rf apps/api/dist && pnpm --filter api build"
   },
   "deploy": {
+    "preDeployCommand": "pnpm --filter @qick/db exec prisma migrate deploy",
     "startCommand": "node apps/api/dist/server.js",
     "restartPolicyType": "ON_FAILURE"
   }
