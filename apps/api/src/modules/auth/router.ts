@@ -29,7 +29,23 @@ export async function hashSenha(senha: string): Promise<string> {
 
 export async function authRouter(app: FastifyInstance) {
   // POST /v1/auth/login
-  app.post('/auth/login', async (req, reply) => {
+  // Rate limit por CONTA (e-mail), não por IP: o tráfego chega pelos IPs do Vercel
+  // (server-to-server), então limitar por IP travaria logins legítimos no pico de turno.
+  app.post(
+    '/auth/login',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '5 minutes',
+          keyGenerator: (req) => {
+            const email = (req.body as { email?: string } | undefined)?.email
+            return email ? `login:${email.toLowerCase()}` : `login-ip:${req.ip}`
+          },
+        },
+      },
+    },
+    async (req, reply) => {
     const body = loginSchema.parse(req.body)
 
     const usuario = await app.db.usuario.findFirst({

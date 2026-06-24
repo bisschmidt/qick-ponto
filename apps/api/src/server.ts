@@ -6,6 +6,9 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 config({ path: resolve(__dirname, '../../../.env') })
 import Fastify from 'fastify'
 import multipart from '@fastify/multipart'
+import helmet from '@fastify/helmet'
+import cors from '@fastify/cors'
+import rateLimit from '@fastify/rate-limit'
 import { dbPlugin } from './plugins/db.js'
 import { authPlugin } from './plugins/auth.js'
 import { redisPlugin } from './plugins/redis.js'
@@ -39,6 +42,23 @@ const app = Fastify({
 })
 
 app.get('/health', async () => ({ ok: true }))
+
+// Cabeçalhos de segurança (HSTS, X-Content-Type-Options, frameguard, etc.).
+// CSP desligado: é uma API JSON, não serve HTML.
+await app.register(helmet, { contentSecurityPolicy: false })
+
+// CORS fechado por padrão (o front chama a API server-to-server, não pelo browser).
+// Para liberar um app mobile/SPA no futuro: setar CORS_ORIGINS=https://a,https://b
+await app.register(cors, {
+  origin: process.env['CORS_ORIGINS']
+    ? process.env['CORS_ORIGINS'].split(',').map((s) => s.trim())
+    : false,
+})
+
+// Rate limit aplicado por rota (global:false). hook=preHandler para a chave poder ler o body.
+// Importante: o tráfego do site chega pelos IPs do Vercel (server-to-server), então limitar
+// por IP seria ineficaz/perigoso — o login é limitado por CONTA (e-mail). Ver auth/router.ts.
+await app.register(rateLimit, { global: false, hook: 'preHandler' })
 
 await app.register(multipart, {
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
