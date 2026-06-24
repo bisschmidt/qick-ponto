@@ -299,6 +299,66 @@ export function heService(db: PrismaClient) {
       })
     },
 
+    // Info da jornada a compensar de um colaborador do time (para o gestor montar os slots)
+    async infoCompensacaoColaborador(tenantId: string, gestorId: string, role: string, colaboradorId: string, dataStr: string) {
+      const ids = await gestor.colaboradoresVisiveis(tenantId, gestorId, role)
+      if (!ids.includes(colaboradorId)) throw { statusCode: 403, message: 'Sem permissão sobre este colaborador' }
+      return this.infoCompensacaoData(tenantId, colaboradorId, dataStr)
+    },
+
+    // Gestor cria a compensação por slots já aprovada (vai direto para "aguardando marcação")
+    async criarCompensacaoGestor(params: {
+      tenantId: string
+      gestorId: string
+      role: string
+      colaboradorId: string
+      dataFalta: string
+      motivo: string
+      dias: DiaCompensacao[]
+    }) {
+      const ids = await gestor.colaboradoresVisiveis(params.tenantId, params.gestorId, params.role)
+      if (!ids.includes(params.colaboradorId)) throw { statusCode: 403, message: 'Sem permissão sobre este colaborador' }
+      if (params.dias.length === 0) throw { statusCode: 422, message: 'Informe ao menos um dia' }
+
+      const exigido = await exigidoDaFalta(params.tenantId, params.colaboradorId, params.dataFalta)
+      const total = params.dias.reduce((acc, d) => acc + duracaoMinutos(d.hora_inicio, d.hora_fim), 0)
+      if (total < exigido) {
+        throw { statusCode: 422, message: `Os dias somam ${formatarMin(total)}, mas a jornada a compensar é ${formatarMin(exigido)}.` }
+      }
+      for (const dia of params.dias) {
+        const data = new Date(`${dia.data}T00:00:00Z`)
+        const check = await checarRegras(params.tenantId, params.colaboradorId, data, dia.hora_inicio, dia.hora_fim)
+        if (!check.ok) throw { statusCode: 422, message: `${dia.data}: ${check.erro}` }
+      }
+
+      return db.solicitacaoCompensacao.create({
+        data: {
+          tenant_id: params.tenantId,
+          colaborador_id: params.colaboradorId,
+          solicitante_id: params.gestorId,
+          data_falta: new Date(`${params.dataFalta}T00:00:00Z`),
+          motivo: params.motivo,
+          status: 'APROVADA',
+          gestor_id: params.gestorId,
+          gestor_at: new Date(),
+          hes: {
+            create: params.dias.map((dia) => ({
+              tenant_id: params.tenantId,
+              colaborador_id: params.colaboradorId,
+              gestor_id: params.gestorId,
+              data: new Date(`${dia.data}T00:00:00Z`),
+              hora_inicio: dia.hora_inicio,
+              hora_fim: dia.hora_fim,
+              tipo: 'COMPENSACAO',
+              status: 'AGUARDANDO_MARCACAO',
+              timestamp_aceite: new Date(),
+            })),
+          },
+        },
+        include: { hes: true },
+      })
+    },
+
     async listarMinhasCompensacoes(colaboradorId: string, tenantId: string) {
       return db.solicitacaoCompensacao.findMany({
         where: { tenant_id: tenantId, colaborador_id: colaboradorId },

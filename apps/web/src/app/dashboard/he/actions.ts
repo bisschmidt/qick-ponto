@@ -55,6 +55,47 @@ export async function cancelarHeAction(id: string): Promise<Result> {
   }
 }
 
+interface JornadaInfo {
+  eh_dia_escala: boolean
+  minutos: number
+  hora_inicio: string | null
+  hora_fim: string | null
+  max_min_dia: number
+  dias_semana: number[]
+}
+
+export async function getJornadaColaboradorAction(
+  colaboradorId: string,
+  data: string,
+): Promise<{ ok: true; info: JornadaInfo } | { ok: false; error: string }> {
+  const session = await requireSession()
+  try {
+    const info = await api.get<JornadaInfo>(
+      `/v1/he/jornada-colaborador?colaborador_id=${colaboradorId}&data=${encodeURIComponent(data)}`,
+      session.token,
+    )
+    return { ok: true, info }
+  } catch (err) {
+    return fail(err, 'Erro ao buscar jornada') as { ok: false; error: string }
+  }
+}
+
+export async function criarCompensacaoGestorAction(input: {
+  colaborador_id: string
+  data_falta: string
+  motivo: string
+  dias: { data: string; hora_inicio: string; hora_fim: string }[]
+}): Promise<Result> {
+  const session = await requireSession()
+  try {
+    await api.post('/v1/he/compensacao-gestor', input, session.token)
+    revalidatePath('/dashboard/he')
+    return ok()
+  } catch (err) {
+    return fail(err, 'Erro ao criar compensação')
+  }
+}
+
 export async function aprovarCompensacaoAction(id: string): Promise<Result> {
   const session = await requireSession()
   try {

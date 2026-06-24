@@ -36,6 +36,18 @@ export const ajustarHeSchema = z.object({
 
 export const jornadaDoDiaQuerySchema = z.object({ data: ymd })
 
+export const jornadaColaboradorQuerySchema = z.object({
+  colaborador_id: z.string().uuid(),
+  data: ymd,
+})
+
+export const criarCompensacaoGestorSchema = z.object({
+  colaborador_id: z.string().uuid(),
+  data_falta: ymd,
+  motivo: z.string().min(3).max(300),
+  dias: z.array(diaCompensacaoSchema).min(1),
+})
+
 export const obsSchema = z.object({ obs: z.string().min(1).max(300) })
 
 export const configHeSchema = z.object({

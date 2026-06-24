@@ -6,8 +6,10 @@ import {
   lancarHeSchema,
   ajustarHeSchema,
   solicitarCompensacaoSchema,
+  criarCompensacaoGestorSchema,
   alterarCompensacaoSchema,
   jornadaDoDiaQuerySchema,
+  jornadaColaboradorQuerySchema,
   obsSchema,
   configHeSchema,
   baterHeSchema,
@@ -77,6 +79,25 @@ export async function heRouter(app: FastifyInstance) {
   app.post('/he/:id/cancelar', authGestor, async (req) => {
     const { id } = req.params as { id: string }
     return service.cancelarHe(req.jwtPayload.tenantId, req.jwtPayload.sub, req.jwtPayload.role, id)
+  })
+
+  app.get('/he/jornada-colaborador', authGestor, async (req) => {
+    const { colaborador_id, data } = jornadaColaboradorQuerySchema.parse(req.query)
+    return service.infoCompensacaoColaborador(req.jwtPayload.tenantId, req.jwtPayload.sub, req.jwtPayload.role, colaborador_id, data)
+  })
+
+  app.post('/he/compensacao-gestor', authGestor, async (req, reply) => {
+    const b = criarCompensacaoGestorSchema.parse(req.body)
+    const r = await service.criarCompensacaoGestor({
+      tenantId: req.jwtPayload.tenantId,
+      gestorId: req.jwtPayload.sub,
+      role: req.jwtPayload.role,
+      colaboradorId: b.colaborador_id,
+      dataFalta: b.data_falta,
+      motivo: b.motivo,
+      dias: b.dias,
+    })
+    return reply.status(201).send(r)
   })
 
   app.post('/he/compensacoes/:id/aprovar', authGestor, async (req) => {
