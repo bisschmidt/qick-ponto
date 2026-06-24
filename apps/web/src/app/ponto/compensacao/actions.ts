@@ -39,6 +39,7 @@ interface JornadaDoDia {
   hora_inicio: string | null
   hora_fim: string | null
   max_min_dia: number
+  dias_semana: number[]
 }
 
 export async function getJornadaDoDiaAction(

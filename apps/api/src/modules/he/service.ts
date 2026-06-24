@@ -232,15 +232,20 @@ export function heService(db: PrismaClient) {
       const cfg = await config.obter(tenantId)
       const jornada = await repo.jornadaVigente(colaboradorId, data)
       if (!jornada) {
-        return { eh_dia_escala: false, minutos: 0, hora_inicio: null, hora_fim: null, max_min_dia: cfg.max_min_dia }
+        return {
+          eh_dia_escala: false, minutos: 0, hora_inicio: null, hora_fim: null,
+          max_min_dia: cfg.max_min_dia, dias_semana: [] as number[],
+        }
       }
-      const ehEscala = (jornada.dias_semana as number[]).includes(data.getUTCDay())
+      const diasSemana = jornada.dias_semana as number[]
+      const ehEscala = diasSemana.includes(data.getUTCDay())
       return {
         eh_dia_escala: ehEscala,
         minutos: ehEscala ? duracaoMinutos(jornada.hora_inicio, jornada.hora_fim) : 0,
         hora_inicio: jornada.hora_inicio,
         hora_fim: jornada.hora_fim,
         max_min_dia: cfg.max_min_dia,
+        dias_semana: diasSemana,
       }
     },
     async solicitarCompensacao(params: {

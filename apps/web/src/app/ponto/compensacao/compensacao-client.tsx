@@ -170,52 +170,99 @@ function CompCard({ comp }: { comp: MinhaCompensacao }) {
 
 interface DiaForm { data: string; hora_inicio: string; hora_fim: string }
 
-interface AlvoJornada { eh_dia_escala: boolean; minutos: number; max_min_dia: number }
+interface InfoFalta {
+  eh_dia_escala: boolean
+  minutos: number        // jornada a compensar (alvo)
+  max_min_dia: number    // limite de HE por dia de escala
+  dias_semana: number[]
+  hora_inicio: string | null
+  hora_fim: string | null
+}
+
+function toMin(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number) as [number, number]
+  return h * 60 + m
+}
+function addMin(hhmm: string, min: number): string {
+  let t = (toMin(hhmm) + min) % 1440
+  if (t < 0) t += 1440
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`
+}
+function weekdayOf(dateStr: string): number {
+  return new Date(`${dateStr}T12:00:00Z`).getUTCDay()
+}
 
 function FormCompensacao() {
   const router = useRouter()
   const [aberto, setAberto] = useState(false)
   const [dataFalta, setDataFalta] = useState('')
   const [motivo, setMotivo] = useState('')
-  const [dias, setDias] = useState<DiaForm[]>([{ data: '', hora_inicio: '18:00', hora_fim: '20:00' }])
-  const [alvo, setAlvo] = useState<AlvoJornada | null>(null)
+  const [info, setInfo] = useState<InfoFalta | null>(null)
+  const [slots, setSlots] = useState<DiaForm[]>([])
   const [erro, setErro] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  // Busca a jornada a compensar quando a data da falta muda
+  const limite = info?.max_min_dia ?? 120
+  const alvo = info?.eh_dia_escala ? info.minutos : 0
+
+  // Ao escolher a falta: busca a jornada e ABRE os slots automaticamente (jornada ÷ limite)
   useEffect(() => {
-    if (!dataFalta) { setAlvo(null); return }
+    if (!dataFalta) { setInfo(null); setSlots([]); return }
     let ativo = true
     getJornadaDoDiaAction(dataFalta).then((r) => {
       if (!ativo) return
-      setAlvo(r.ok ? { eh_dia_escala: r.info.eh_dia_escala, minutos: r.info.minutos, max_min_dia: r.info.max_min_dia } : null)
+      if (!r.ok || !r.info.eh_dia_escala || r.info.minutos <= 0) {
+        setInfo(r.ok ? r.info : null); setSlots([]); return
+      }
+      setInfo(r.info)
+      const n = Math.max(1, Math.ceil(r.info.minutos / r.info.max_min_dia))
+      const fimPadrao = addMin('18:00', r.info.max_min_dia)
+      setSlots(Array.from({ length: n }, () => ({ data: '', hora_inicio: '18:00', hora_fim: fimPadrao })))
     })
     return () => { ativo = false }
   }, [dataFalta])
 
-  const totalPlanejado = dias.reduce((acc, d) => acc + minutosDe(d.hora_inicio, d.hora_fim), 0)
-  const exigido = alvo?.minutos ?? 0
-  const faltam = Math.max(0, exigido - totalPlanejado)
-  const cobre = exigido > 0 && totalPlanejado >= exigido
-
-  function setDia(i: number, campo: keyof DiaForm, valor: string) {
-    setDias((ds) => ds.map((d, idx) => (idx === i ? { ...d, [campo]: valor } : d)))
+  function setSlot(i: number, campo: keyof DiaForm, v: string) {
+    setSlots((s) => s.map((d, idx) => (idx === i ? { ...d, [campo]: v } : d)))
   }
-  function addDia() { setDias((ds) => [...ds, { data: '', hora_inicio: '18:00', hora_fim: '20:00' }]) }
-  function rmDia(i: number) { setDias((ds) => ds.filter((_, idx) => idx !== i)) }
+  function addSlot() { setSlots((s) => [...s, { data: '', hora_inicio: '18:00', hora_fim: addMin('18:00', limite) }]) }
+  function rmSlot(i: number) { setSlots((s) => s.filter((_, idx) => idx !== i)) }
+
+  // Validação por slot (só os que já têm data)
+  function erroSlot(d: DiaForm): string | null {
+    if (!d.data) return null
+    const dur = minutosDe(d.hora_inicio, d.hora_fim)
+    if (dur <= 0) return 'Horário inválido'
+    const escala = info ? (info.dias_semana ?? []).includes(weekdayOf(d.data)) : false
+    if (escala && dur > limite) return `Máx ${fmtMin(limite)} em dia de escala`
+    if (escala && info?.hora_inicio && info?.hora_fim) {
+      const si = toMin(d.hora_inicio), sf = toMin(d.hora_fim)
+      const ji = toMin(info.hora_inicio), jf = toMin(info.hora_fim)
+      if (si < jf && ji < sf) return 'Não pode ser no mesmo turno da jornada'
+    }
+    return null
+  }
+
+  const preenchidos = slots.filter((s) => s.data)
+  const total = preenchidos.reduce((acc, s) => acc + Math.max(0, minutosDe(s.hora_inicio, s.hora_fim)), 0)
+  const faltam = Math.max(0, alvo - total)
+  const temErroSlot = slots.some((s) => erroSlot(s) !== null)
+  const cobre = alvo > 0 && total >= alvo && !temErroSlot
+  const sugeridos = faltam > 0 ? Math.ceil(faltam / limite) : 0
 
   function enviar() {
     setErro(null)
     if (!dataFalta) { setErro('Informe a data da falta'); return }
-    if (alvo && !alvo.eh_dia_escala) { setErro('A data da falta não é um dia de trabalho na sua escala'); return }
+    if (info && !info.eh_dia_escala) { setErro('A data da falta não é um dia de trabalho na sua escala'); return }
     if (motivo.trim().length < 3) { setErro('Descreva o motivo'); return }
-    if (dias.some((d) => !d.data)) { setErro('Preencha a data de todos os dias'); return }
-    if (exigido > 0 && !cobre) { setErro(`Os dias somam ${fmtMin(totalPlanejado)}, mas você precisa compensar ${fmtMin(exigido)}. Faltam ${fmtMin(faltam)}.`); return }
+    if (preenchidos.length === 0) { setErro('Preencha os dias de compensação'); return }
+    if (temErroSlot) { setErro('Corrija os dias destacados em vermelho'); return }
+    if (!cobre) { setErro(`Os dias somam ${fmtMin(total)}, mas você precisa compensar ${fmtMin(alvo)}. Faltam ${fmtMin(faltam)}.`); return }
     startTransition(async () => {
-      const r = await solicitarCompensacaoAction({ data_falta: dataFalta, motivo: motivo.trim(), dias })
+      const r = await solicitarCompensacaoAction({ data_falta: dataFalta, motivo: motivo.trim(), dias: preenchidos })
       if (!r.ok) { setErro(r.error); return }
       setAberto(false)
-      setDataFalta(''); setMotivo(''); setDias([{ data: '', hora_inicio: '18:00', hora_fim: '20:00' }])
+      setDataFalta(''); setMotivo(''); setInfo(null); setSlots([])
       router.refresh()
     })
   }
@@ -233,11 +280,11 @@ function FormCompensacao() {
       <CardContent className="pt-4 space-y-3">
         <div className="flex items-center gap-2">
           <Clock className="h-5 w-5 text-blue-600" />
-          <p className="font-semibold text-gray-900">Solicitar compensação</p>
+          <p className="font-semibold text-gray-900">Solicitar compensação de falta</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-700">Data da falta</label>
+            <label className="text-xs font-medium text-gray-700">Data da falta a compensar</label>
             <Input type="date" value={dataFalta} onChange={(e) => setDataFalta(e.target.value)} />
           </div>
           <div className="space-y-1">
@@ -246,63 +293,74 @@ function FormCompensacao() {
           </div>
         </div>
 
-        {/* Alvo: jornada a compensar */}
-        {alvo && !alvo.eh_dia_escala && (
+        {info && !info.eh_dia_escala && (
           <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             Essa data não é um dia de trabalho na sua escala — não há jornada a compensar.
           </div>
         )}
-        {alvo && alvo.eh_dia_escala && (
-          <div className={`rounded-md border p-2.5 text-sm ${cobre ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'}`}>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Jornada a compensar</span>
-              <span className="font-semibold text-gray-900">{fmtMin(exigido)}</span>
+
+        {info && info.eh_dia_escala && (
+          <>
+            <div className={`rounded-md border p-2.5 text-sm ${cobre ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Jornada a compensar</span>
+                <span className="font-semibold text-gray-900">{fmtMin(alvo)}</span>
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-gray-600">Distribuído nos dias</span>
+                <span className={`font-semibold ${cobre ? 'text-green-700' : 'text-blue-700'}`}>{fmtMin(total)}</span>
+              </div>
+              {cobre ? (
+                <p className="mt-1.5 text-xs text-green-700 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Cobertura completa
+                </p>
+              ) : (
+                <p className="mt-1.5 text-xs text-blue-700">
+                  Faltam <b>{fmtMin(faltam)}</b>{sugeridos > 0 ? ` — cerca de ${sugeridos} dia(s) de ${fmtMin(limite)}` : ''}.
+                </p>
+              )}
             </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-gray-600">Planejado nos dias abaixo</span>
-              <span className={`font-semibold ${cobre ? 'text-green-700' : 'text-blue-700'}`}>{fmtMin(totalPlanejado)}</span>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-700">
+                Dias de compensação · máx {fmtMin(limite)}/dia em dias de escala (dias sem escala podem mais)
+              </label>
+              {slots.map((d, i) => {
+                const e = erroSlot(d)
+                const dur = Math.max(0, minutosDe(d.hora_inicio, d.hora_fim))
+                return (
+                  <div key={i} className="space-y-0.5">
+                    <div className="flex items-end gap-2">
+                      <span className="text-xs text-gray-400 pb-2 w-4">{i + 1}.</span>
+                      <div className="flex-1">
+                        <Input type="date" value={d.data} onChange={(ev) => setSlot(i, 'data', ev.target.value)} className={e ? 'border-red-400' : ''} />
+                      </div>
+                      <Input type="time" value={d.hora_inicio} onChange={(ev) => setSlot(i, 'hora_inicio', ev.target.value)} className="w-24" />
+                      <Input type="time" value={d.hora_fim} onChange={(ev) => setSlot(i, 'hora_fim', ev.target.value)} className="w-24" />
+                      <span className="text-xs text-gray-400 font-mono pb-2 w-10 text-right">{fmtMin(dur)}</span>
+                      {slots.length > 1 && (
+                        <button onClick={() => rmSlot(i)} className="text-gray-400 hover:text-red-500 pb-2"><Trash2 className="h-4 w-4" /></button>
+                      )}
+                    </div>
+                    {e && <p className="text-xs text-red-600 pl-6">{e}</p>}
+                  </div>
+                )
+              })}
+              <button onClick={addSlot} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
+                <Plus className="h-3 w-3" /> Adicionar dia
+              </button>
             </div>
-            {!cobre && (
-              <p className="mt-1.5 text-xs text-blue-700">
-                Faltam <b>{fmtMin(faltam)}</b>. Máx {fmtMin(alvo.max_min_dia)} por dia de escala — adicione mais dias.
-              </p>
-            )}
-            {cobre && <p className="mt-1.5 text-xs text-green-700">Cobertura completa da jornada ✓</p>}
-          </div>
+          </>
         )}
 
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-gray-700">Dias para compensar</label>
-          {dias.map((d, i) => {
-            const m = minutosDe(d.hora_inicio, d.hora_fim)
-            return (
-              <div key={i} className="flex items-end gap-2">
-                <div className="flex-1 space-y-1">
-                  <Input type="date" value={d.data} onChange={(e) => setDia(i, 'data', e.target.value)} />
-                </div>
-                <Input type="time" value={d.hora_inicio} onChange={(e) => setDia(i, 'hora_inicio', e.target.value)} className="w-24" />
-                <Input type="time" value={d.hora_fim} onChange={(e) => setDia(i, 'hora_fim', e.target.value)} className="w-24" />
-                <span className="text-xs text-gray-400 font-mono pb-2 w-10 text-right">{fmtMin(m)}</span>
-                {dias.length > 1 && (
-                  <button onClick={() => rmDia(i)} className="text-gray-400 hover:text-red-500 pb-2"><Trash2 className="h-4 w-4" /></button>
-                )}
-              </div>
-            )
-          })}
-          <button onClick={addDia} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
-            <Plus className="h-3 w-3" /> Adicionar dia
-          </button>
-        </div>
-
         <p className="text-xs text-gray-400">
-          Em dias fora da sua escala (ex.: sábado) é possível trabalhar mais. A solicitação vai para
-          aprovação do líder.
+          Cada dia deve ser em turno diferente da sua jornada. A solicitação vai para aprovação do líder.
         </p>
         {erro && <p className="text-sm text-red-600">{erro}</p>}
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setAberto(false)} disabled={pending} className="flex-1">Cancelar</Button>
-          <Button onClick={enviar} disabled={pending || (exigido > 0 && !cobre) || (!!alvo && !alvo.eh_dia_escala)} className="flex-1">
+          <Button onClick={enviar} disabled={pending || !cobre} className="flex-1">
             {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Enviar solicitação
           </Button>
         </div>
