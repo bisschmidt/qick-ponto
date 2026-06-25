@@ -129,18 +129,44 @@ export function m1Repository(db: PrismaClient) {
       return db.jornada.create({ data })
     },
 
+    // Apenas ativas — usado para vincular colaboradores (novos vínculos)
     findJornadasByTenant(tenantId: string) {
       return db.jornada.findMany({
         where: { tenant_id: tenantId, ativo: true },
-        include: { pausas: { orderBy: { ordem: 'asc' } } },
+        include: { pausas: { orderBy: { ordem: 'asc' } }, horarios: true },
+      })
+    },
+
+    // Todas (ativas + inativas) com contagem de vínculos — usado na gestão de jornadas
+    findJornadasGestao(tenantId: string) {
+      return db.jornada.findMany({
+        where: { tenant_id: tenantId },
+        include: {
+          pausas: { orderBy: { ordem: 'asc' } },
+          horarios: true,
+          _count: { select: { colaboradores: true } },
+        },
+        orderBy: [{ ativo: 'desc' }, { nome: 'asc' }],
       })
     },
 
     findJornadaById(tenantId: string, id: string) {
       return db.jornada.findFirst({
         where: { id, tenant_id: tenantId },
-        include: { pausas: { orderBy: { ordem: 'asc' } } },
+        include: { pausas: { orderBy: { ordem: 'asc' } }, horarios: true },
       })
+    },
+
+    contarVinculosJornada(id: string) {
+      return db.colaboradorJornada.count({ where: { jornada_id: id } })
+    },
+
+    setJornadaAtivo(id: string, ativo: boolean) {
+      return db.jornada.update({ where: { id }, data: { ativo } })
+    },
+
+    deleteJornada(id: string) {
+      return db.jornada.delete({ where: { id } })
     },
 
     // ── ACT ───────────────────────────────────────────────────────────────────

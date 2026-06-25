@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, Save, AlertTriangle } from 'lucide-react'
 import { atualizarJornadaAction } from './actions'
+import { HorariosPorDiaEditor, type DiaHorario } from '../horarios-por-dia'
 
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -36,6 +37,7 @@ interface Jornada {
   tolerancia_antec_inicio_interv: number
   janela_marcacao_min: number
   pausas: Pausa[]
+  horarios?: DiaHorario[]
 }
 
 export function EditarJornadaForm({ jornada, userRole }: { jornada: Jornada; userRole: string }) {
@@ -53,8 +55,11 @@ export function EditarJornadaForm({ jornada, userRole }: { jornada: Jornada; use
   const [tolInicioInt, setTolInicioInt] = useState(jornada.tolerancia_antec_inicio_interv)
   const [janelaMarc, setJanelaMarc] = useState(jornada.janela_marcacao_min)
   const [pausas, setPausas]         = useState<Pausa[]>(jornada.pausas)
+  const [horarios, setHorarios]     = useState<DiaHorario[]>(jornada.horarios ?? [])
   const [erro, setErro] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+
+  const ehNR17 = tipo === 'CALL_CENTER_NR17' || tipo === 'CALL_CENTER_COMP'
 
   function toggleDia(d: number) {
     if (!podeEditar) return
@@ -79,6 +84,7 @@ export function EditarJornadaForm({ jornada, userRole }: { jornada: Jornada; use
         tolerancia_antec_inicio_interv: tolInicioInt,
         janela_marcacao_min: janelaMarc,
         pausas: pausas.map((p, i) => ({ ...p, ordem: i + 1 })),
+        horarios: horarios.filter((h) => dias.includes(h.dia_semana)),
       })
       if (!r.ok) { setErro(r.error); return }
       router.push('/dashboard/jornadas')
@@ -143,6 +149,17 @@ export function EditarJornadaForm({ jornada, userRole }: { jornada: Jornada; use
                 >{dia}</button>
               ))}
             </div>
+          </div>
+
+          <div className="pt-2 border-t">
+            <HorariosPorDiaEditor
+              dias={dias}
+              base={{ inicio: horaInicio, fim: horaFim }}
+              horarios={horarios}
+              onChange={setHorarios}
+              disabled={!podeEditar}
+              ehNR17={ehNR17}
+            />
           </div>
         </CardContent>
       </Card>

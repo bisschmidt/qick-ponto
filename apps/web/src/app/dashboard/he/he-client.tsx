@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Clock, Plus, X, Loader2, CheckCircle2, XCircle, Calendar, TrendingUp, AlertTriangle, Trash2, CalendarClock } from 'lucide-react'
 import { fmtDataCurta } from '@/lib/utils'
+import { SectionTabs, HE_TABS } from '@/components/dashboard/section-tabs'
 import {
   lancarHeAction,
   ajustarHeAction,
@@ -104,6 +105,8 @@ export function HeClient({ time, membros }: { time: HeTime; membros: Membro[] })
           </Button>
         </div>
       </div>
+
+      <SectionTabs tabs={HE_TABS} />
 
       {/* Métricas */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">

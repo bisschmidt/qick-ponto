@@ -337,10 +337,26 @@ model Jornada {
 
   tenant    Tenant   @relation(fields: [tenant_id], references: [id])
   pausas    PausaConfig[]
+  horarios  JornadaHorario[]
   colaboradores ColaboradorJornada[]
   escalas   EscalaJornada[]
 
   @@index([tenant_id])
+}
+
+// Horário por dia da semana (override do hora_inicio/hora_fim base da Jornada).
+// Quando não há linha para um dia, vale o horário base — assim jornadas antigas
+// continuam funcionando sem backfill.
+model JornadaHorario {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jornada_id  String  @db.Uuid
+  dia_semana  Int     // 0=Dom .. 6=Sab
+  hora_inicio String  @db.VarChar(5)
+  hora_fim    String  @db.VarChar(5)
+
+  jornada     Jornada @relation(fields: [jornada_id], references: [id], onDelete: Cascade)
+
+  @@unique([jornada_id, dia_semana])
 }
 
 model PausaConfig {

@@ -34,7 +34,7 @@ export function m3Service(db: PrismaClient) {
         },
         orderBy: { data_inicio: 'desc' },
         include: {
-          jornada: { include: { pausas: true } },
+          jornada: { include: { pausas: true, horarios: true } },
         },
       })
 
@@ -50,6 +50,12 @@ export function m3Service(db: PrismaClient) {
       }
 
       const { jornada } = vigencia
+      // Horário do dia atual (override por dia da semana; fallback no base)
+      const diaSemana = agora.getUTCDay()
+      const horarioDia = jornada.horarios?.find((h) => h.dia_semana === diaSemana)
+      const horaInicioDia = horarioDia?.hora_inicio ?? jornada.hora_inicio
+      const horaFimDia = horarioDia?.hora_fim ?? jornada.hora_fim
+
       const pausasConfig: PausaConfigNr17[] = jornada.pausas.map((p) => ({
         id: p.id,
         ordem: p.ordem,
@@ -70,7 +76,7 @@ export function m3Service(db: PrismaClient) {
         agora,
         entrada: entrada?.timestamp_marcacao ?? null,
         saida: saida?.timestamp_marcacao ?? null,
-        duracaoJornadaMin: calcularDuracao(jornada.hora_inicio, jornada.hora_fim),
+        duracaoJornadaMin: calcularDuracao(horaInicioDia, horaFimDia),
         pausasConfig,
         marcacoesDia: marcacoes.map((m) => ({
           tipo: m.tipo,

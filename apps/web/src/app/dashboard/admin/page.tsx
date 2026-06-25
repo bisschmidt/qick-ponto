@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { IpWhitelistForm } from './ip-whitelist-form'
 import { ConfigHeForm } from './config-he-form'
 import { fmtDataCurta } from '@/lib/utils'
+import { SectionTabs, adminTabsFor } from '@/components/dashboard/section-tabs'
 
 interface Tenant {
   id: string
@@ -32,8 +33,10 @@ export default async function AdminPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Administração</h1>
-        <p className="text-gray-500 text-sm mt-1">Configurações da empresa</p>
+        <p className="text-gray-500 text-sm mt-1">Configurações da empresa, feriados e exportações</p>
       </div>
+
+      <SectionTabs tabs={adminTabsFor(session.role)} />
 
       {tenant && (
         <Card>

@@ -36,7 +36,7 @@ export async function buscarJornadaVigente(
     orderBy: { data_inicio: 'desc' },
     include: {
       jornada: {
-        include: { pausas: true },
+        include: { pausas: true, horarios: true },
       },
     },
   })

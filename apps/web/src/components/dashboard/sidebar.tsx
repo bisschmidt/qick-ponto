@@ -9,31 +9,43 @@ import {
   Clock,
   BarChart3,
   Settings,
-  Calendar,
-  FileText,
   LogOut,
-  ClipboardList,
-  Banknote,
   CheckSquare,
   TrendingUp,
+  Wallet,
 } from 'lucide-react'
 import { logoutAction } from '@/app/login/actions'
 
-const NAV = [
+// `match` lista os prefixos de rota que mantêm o item destacado (grupos com sub-abas).
+interface NavItem {
+  href: string
+  label: string
+  icon: typeof LayoutDashboard
+  roles: string[]
+  match?: string[]
+}
+const NAV: NavItem[] = [
   { href: '/dashboard',                label: 'Dashboard',       icon: LayoutDashboard, roles: ['ADMIN_TENANT','GESTOR','RH_DP','AUDITOR'] },
   { href: '/dashboard/equipe',         label: 'Minha equipe',    icon: Users,           roles: ['ADMIN_TENANT','GESTOR','RH_DP'] },
   { href: '/dashboard/colaboradores',  label: 'Colaboradores',   icon: Users,           roles: ['ADMIN_TENANT','GESTOR','RH_DP'] },
   { href: '/dashboard/jornadas',       label: 'Jornadas',        icon: Clock,           roles: ['ADMIN_TENANT','RH_DP'] },
-  { href: '/dashboard/feriados',       label: 'Feriados',        icon: Calendar,        roles: ['ADMIN_TENANT','RH_DP'] },
-  { href: '/dashboard/apuracao',       label: 'Apuração',        icon: ClipboardList,   roles: ['ADMIN_TENANT','GESTOR','RH_DP'] },
-  { href: '/dashboard/periodos',       label: 'Períodos',        icon: Calendar,        roles: ['ADMIN_TENANT','RH_DP'] },
+  { href: '/dashboard/periodos',       label: 'Folha',           icon: Wallet,          roles: ['ADMIN_TENANT','RH_DP'],
+    match: ['/dashboard/periodos','/dashboard/apuracao'] },
   { href: '/dashboard/ajustes',        label: 'Ajustes',         icon: CheckSquare,     roles: ['ADMIN_TENANT','GESTOR','RH_DP'] },
-  { href: '/dashboard/he',             label: 'Horas Extras',    icon: TrendingUp,      roles: ['ADMIN_TENANT','GESTOR','RH_DP'] },
-  { href: '/dashboard/banco-horas',    label: 'Banco de Horas',  icon: Banknote,        roles: ['ADMIN_TENANT','GESTOR','RH_DP'] },
+  { href: '/dashboard/he',             label: 'Horas Extras',    icon: TrendingUp,      roles: ['ADMIN_TENANT','GESTOR','RH_DP'],
+    match: ['/dashboard/he','/dashboard/banco-horas'] },
   { href: '/dashboard/relatorios',     label: 'Relatórios',      icon: BarChart3,       roles: ['ADMIN_TENANT','GESTOR','RH_DP','AUDITOR'] },
-  { href: '/dashboard/exportacoes',    label: 'Exportações',     icon: FileText,        roles: ['ADMIN_TENANT','RH_DP','AUDITOR'] },
-  { href: '/dashboard/admin',           label: 'Administração',   icon: Settings,        roles: ['ADMIN_TENANT'] },
+  { href: '/dashboard/admin',          label: 'Administração',   icon: Settings,        roles: ['ADMIN_TENANT','RH_DP','AUDITOR'],
+    match: ['/dashboard/admin','/dashboard/feriados','/dashboard/exportacoes'] },
 ]
+
+// Administração agrega seções com papéis distintos; o item leva à primeira seção
+// que o papel pode acessar (ADMIN → Geral, RH → Feriados, Auditor → Exportações).
+function adminHrefFor(role: string): string {
+  if (role === 'ADMIN_TENANT') return '/dashboard/admin'
+  if (role === 'RH_DP') return '/dashboard/feriados'
+  return '/dashboard/exportacoes'
+}
 
 interface Props { role: string; nome: string }
 
@@ -49,12 +61,14 @@ export function Sidebar({ role, nome }: Props) {
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+        {navItems.map(({ href, label, icon: Icon, match }) => {
+          const prefixes = match ?? (href === '/dashboard' ? [] : [href])
+          const active = pathname === href || prefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))
+          const target = href === '/dashboard/admin' ? adminHrefFor(role) : href
           return (
             <Link
               key={href}
-              href={href}
+              href={target}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 active ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',

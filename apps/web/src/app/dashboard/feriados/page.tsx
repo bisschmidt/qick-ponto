@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/session'
 import { api } from '@/lib/api'
 import { FeriadosClient } from './feriados-client'
+import { SectionTabs, adminTabsFor } from '@/components/dashboard/section-tabs'
 
 interface Feriado {
   id: string
@@ -23,5 +24,10 @@ export default async function FeriadosPage({
   const lista = await api
     .get<Feriado[]>(`/v1/feriados?ano=${anoSel}`, session.token)
     .catch(() => [])
-  return <FeriadosClient ano={anoSel} lista={lista} />
+  return (
+    <div className="space-y-5 max-w-4xl">
+      <SectionTabs tabs={adminTabsFor(session.role)} />
+      <FeriadosClient ano={anoSel} lista={lista} />
+    </div>
+  )
 }

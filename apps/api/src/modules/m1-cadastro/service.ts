@@ -222,7 +222,20 @@ export function m1Service(repo: M1Repository) {
         }
       }
 
-      // Jornadas NR-17: validação hard das pausas
+      // Horários por dia só fazem sentido em dias da escala, e cada dia uma vez
+      const horarios = input.horarios ?? []
+      const diasVistos = new Set<number>()
+      for (const h of horarios) {
+        if (!input.dias_semana.includes(h.dia_semana)) {
+          throw { statusCode: 422, message: `Horário definido para um dia fora da escala (dia ${h.dia_semana})` }
+        }
+        if (diasVistos.has(h.dia_semana)) {
+          throw { statusCode: 422, message: `Dia ${h.dia_semana} tem mais de um horário` }
+        }
+        diasVistos.add(h.dia_semana)
+      }
+
+      // Jornadas NR-17: validação hard das pausas (horário base + cada dia)
       const ehNR17 = ['CALL_CENTER_NR17', 'CALL_CENTER_COMP'].includes(input.tipo)
       if (ehNR17) {
         const erroNR17 = validarJornadaNR17(input)
@@ -262,11 +275,43 @@ export function m1Service(repo: M1Repository) {
             janela_fim_min: p.janela_fim_min ?? null,
           })),
         },
+        horarios: {
+          create: horarios.map((h) => ({
+            dia_semana: h.dia_semana,
+            hora_inicio: h.hora_inicio,
+            hora_fim: h.hora_fim,
+          })),
+        },
       })
     },
 
     async listarJornadas(tenantId: string) {
       return repo.findJornadasByTenant(tenantId)
+    },
+
+    async listarJornadasGestao(tenantId: string) {
+      return repo.findJornadasGestao(tenantId)
+    },
+
+    async inativarJornada(tenantId: string, id: string, ativo: boolean) {
+      const j = await repo.findJornadaById(tenantId, id)
+      if (!j) throw { statusCode: 404, message: 'Jornada não encontrada' }
+      return repo.setJornadaAtivo(id, ativo)
+    },
+
+    // Só exclui se nunca foi usada por nenhum colaborador — preserva histórico/auditoria.
+    async excluirJornada(tenantId: string, id: string) {
+      const j = await repo.findJornadaById(tenantId, id)
+      if (!j) throw { statusCode: 404, message: 'Jornada não encontrada' }
+      const vinculos = await repo.contarVinculosJornada(id)
+      if (vinculos > 0) {
+        throw {
+          statusCode: 409,
+          message: 'Esta jornada já foi usada por colaboradores e não pode ser excluída. Use "Inativar" para retirá-la de novos vínculos sem quebrar o histórico.',
+        }
+      }
+      await repo.deleteJornada(id)
+      return { ok: true }
     },
 
     // ── ACT ───────────────────────────────────────────────────────────────────

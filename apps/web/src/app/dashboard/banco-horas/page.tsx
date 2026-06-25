@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { fmtMinutos, fmtDataCurta } from '@/lib/utils'
 import { Banknote } from 'lucide-react'
+import { SectionTabs, HE_TABS } from '@/components/dashboard/section-tabs'
 
 interface Resumo { totalMinutos: number; minutosVencendo: number }
 interface Extrato {
@@ -31,9 +32,11 @@ export default async function BancoHorasPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Banco de Horas</h1>
-        <p className="text-gray-500 text-sm mt-1">Saldo e movimentações</p>
+        <h1 className="text-2xl font-bold text-gray-900">Horas Extras</h1>
+        <p className="text-gray-500 text-sm mt-1">Saldo e movimentações do banco de horas</p>
       </div>
+
+      <SectionTabs tabs={HE_TABS} />
 
       {resumo && (
         <div className="grid grid-cols-2 gap-4 max-w-md">

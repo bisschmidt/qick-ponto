@@ -125,14 +125,18 @@ export function m4Service(db: PrismaClient) {
         // Dias fora da escala sem marcação → pula (não gera inconsistência)
         if (!ehDiaDeTrabalho && marcacoesDoDia.length === 0) continue
 
-        const duracaoMinutos = calcularDuracaoMinutos(jornada.hora_inicio, jornada.hora_fim)
+        // Horário por dia da semana (override do base); janela NR-17 recalcula com este horário
+        const horarioDia = jornada.horarios?.find((h) => h.dia_semana === diaSemana)
+        const horaInicioDia = horarioDia?.hora_inicio ?? jornada.hora_inicio
+        const horaFimDia = horarioDia?.hora_fim ?? jornada.hora_fim
+        const duracaoMinutos = calcularDuracaoMinutos(horaInicioDia, horaFimDia)
 
         const entrada: EntradaApuracao = {
           colaboradorId,
           data: dia,
           jornada: {
-            horaInicio: jornada.hora_inicio,
-            horaFim: jornada.hora_fim,
+            horaInicio: horaInicioDia,
+            horaFim: horaFimDia,
             duracaoMinutos,
             toleranciaEntradaMin: jornada.tolerancia_atraso_entrada,
             toleranciaSaidaMin: jornada.tolerancia_antec_saida,

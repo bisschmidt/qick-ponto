@@ -2,7 +2,22 @@
 
 import { api, ApiError } from '@/lib/api'
 import { requireSession } from '@/lib/session'
-import { redirect } from 'next/navigation'
+
+interface DiaHorario { dia_semana: number; hora_inicio: string; hora_fim: string }
+interface NovaJornadaBody {
+  nome: string
+  tipo: string
+  hora_inicio: string
+  hora_fim: string
+  dias_semana: number[]
+  valida_feriado: boolean
+  tolerancia_atraso_entrada: number
+  tolerancia_atraso_intervalo: number
+  tolerancia_antec_saida: number
+  tolerancia_antec_inicio_interv: number
+  janela_marcacao_min: number
+  horarios: DiaHorario[]
+}
 
 function pausasPorTipo(tipo: string) {
   // Call center (NR-17): 2× pausa de 10 min + intervalo de 20 min (turno ≤ 6h)
@@ -27,33 +42,21 @@ function pausasPorTipo(tipo: string) {
   ]
 }
 
-export async function criarJornadaAction(_prev: { error?: string } | undefined, formData: FormData) {
+export async function criarJornadaAction(
+  input: NovaJornadaBody,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const session = await requireSession()
 
-  const tipo = formData.get('tipo') as string
-  const diasRaw = formData.getAll('dias_semana').map(Number)
-
   const body = {
-    nome:             formData.get('nome') as string,
-    tipo,
-    hora_inicio:      formData.get('hora_inicio') as string,
-    hora_fim:         formData.get('hora_fim') as string,
-    dias_semana:      diasRaw,
-    valida_feriado:   formData.get('valida_feriado') === 'on',
-    tolerancia_atraso_entrada:       Number(formData.get('tol_entrada') ?? 5),
-    tolerancia_atraso_intervalo:     Number(formData.get('tol_intervalo') ?? 5),
-    tolerancia_antec_saida:          Number(formData.get('tol_saida') ?? 5),
-    tolerancia_antec_inicio_interv:  Number(formData.get('tol_inicio_interv') ?? 5),
-    janela_marcacao_min:             Number(formData.get('janela_marcacao') ?? 15),
-    pausas: pausasPorTipo(tipo),
+    ...input,
+    pausas: pausasPorTipo(input.tipo),
   }
 
   try {
     await api.post('/v1/jornadas', body, session.token)
+    return { ok: true }
   } catch (err) {
-    if (err instanceof ApiError) return { error: err.message }
-    return { error: 'Erro ao criar jornada' }
+    if (err instanceof ApiError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Erro ao criar jornada' }
   }
-
-  redirect('/dashboard/jornadas')
 }

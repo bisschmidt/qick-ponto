@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { FileText, FileSpreadsheet, ArrowRight } from 'lucide-react'
+import { SectionTabs, adminTabsFor } from '@/components/dashboard/section-tabs'
 
 export default async function ExportacoesPage() {
-  await requireSession()
+  const session = await requireSession()
 
   return (
     <div className="space-y-6">
@@ -15,6 +16,8 @@ export default async function ExportacoesPage() {
           Geração de arquivos para fiscalização e folha de pagamento
         </p>
       </div>
+
+      <SectionTabs tabs={adminTabsFor(session.role)} />
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Fiscal */}

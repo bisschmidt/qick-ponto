@@ -29,6 +29,7 @@ interface Jornada {
     janela_inicio_min: number | null
     janela_fim_min: number | null
   }[]
+  horarios?: { dia_semana: number; hora_inicio: string; hora_fim: string }[]
 }
 
 export default async function EditarJornadaPage({ params }: { params: Promise<{ id: string }> }) {

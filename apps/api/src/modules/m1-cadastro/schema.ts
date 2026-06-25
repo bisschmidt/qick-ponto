@@ -29,10 +29,21 @@ export const criarJornadaSchema = z.object({
     'JORNADA_24_48',
     'PERSONALIZADA',
   ]),
+  // Horário base (fallback para dias sem override em `horarios`)
   hora_inicio: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
   hora_fim: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
   dias_semana: z.array(z.number().int().min(0).max(6)).min(1),
   valida_feriado: z.boolean().default(false),
+  // Horário por dia da semana (override do base). Cada dia só pode aparecer uma vez.
+  horarios: z
+    .array(
+      z.object({
+        dia_semana: z.number().int().min(0).max(6),
+        hora_inicio: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
+        hora_fim: z.string().regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
+      }),
+    )
+    .optional(),
   hora_inicio_sab: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   hora_fim_sab: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   hora_inicio_dom: z.string().regex(/^\d{2}:\d{2}$/).optional(),

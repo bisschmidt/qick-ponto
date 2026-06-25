@@ -7,6 +7,7 @@ import { fmtDataCurta } from '@/lib/utils'
 import Link from 'next/link'
 import { CriarPeriodoForm } from './criar-periodo-form'
 import { FecharPeriodoBtn } from './fechar-periodo-btn'
+import { SectionTabs, FOLHA_TABS } from '@/components/dashboard/section-tabs'
 
 interface Periodo {
   id: string
@@ -31,9 +32,11 @@ export default async function PeriodosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Períodos de Fechamento</h1>
-        <p className="text-gray-500 text-sm mt-1">Gerencie os períodos mensais e feche para gerar espelhos</p>
+        <h1 className="text-2xl font-bold text-gray-900">Folha</h1>
+        <p className="text-gray-500 text-sm mt-1">Períodos de fechamento, apuração e geração de espelhos</p>
       </div>
+
+      <SectionTabs tabs={FOLHA_TABS} />
 
       <CriarPeriodoForm />
 

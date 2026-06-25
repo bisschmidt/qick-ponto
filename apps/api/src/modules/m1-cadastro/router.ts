@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { m1Repository } from './repository.js'
 import { m1Service } from './service.js'
+import { validarJornadaNR17 } from './validacoes-nr17.js'
 import {
   criarColaboradorSchema,
   editarColaboradorSchema,
@@ -164,7 +165,24 @@ export async function m1Router(app: FastifyInstance) {
   })
 
   app.get('/jornadas', authGestor, async (req) => {
+    const { gestao } = req.query as { gestao?: string }
+    if (gestao === '1') return service.listarJornadasGestao(req.jwtPayload.tenantId)
     return service.listarJornadas(req.jwtPayload.tenantId)
+  })
+
+  // Inativar/reativar — inativa some dos novos vínculos, mantém histórico
+  app.patch('/jornadas/:id/ativo', authAdmin, async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const { ativo } = req.body as { ativo?: boolean }
+    const j = await service.inativarJornada(req.jwtPayload.tenantId, id, ativo ?? false)
+    return reply.send(j)
+  })
+
+  // Excluir — apenas se nunca usada (senão 409 sugerindo inativar)
+  app.delete('/jornadas/:id', authAdmin, async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const r = await service.excluirJornada(req.jwtPayload.tenantId, id)
+    return reply.send(r)
   })
 
   app.get('/jornadas/:id', authGestor, async (req, reply) => {
@@ -184,6 +202,23 @@ export async function m1Router(app: FastifyInstance) {
       where: { id, tenant_id: req.jwtPayload.tenantId },
     })
     if (!existe) return reply.status(404).send({ message: 'Jornada não encontrada' })
+
+    // Valida horários por dia (mesmas regras da criação)
+    const horarios = input.horarios ?? []
+    const diasVistos = new Set<number>()
+    for (const h of horarios) {
+      if (!input.dias_semana.includes(h.dia_semana)) {
+        return reply.status(422).send({ message: `Horário definido para um dia fora da escala (dia ${h.dia_semana})` })
+      }
+      if (diasVistos.has(h.dia_semana)) {
+        return reply.status(422).send({ message: `Dia ${h.dia_semana} tem mais de um horário` })
+      }
+      diasVistos.add(h.dia_semana)
+    }
+    if (['CALL_CENTER_NR17', 'CALL_CENTER_COMP'].includes(input.tipo)) {
+      const erro = validarJornadaNR17(input)
+      if (erro) return reply.status(422).send({ message: erro })
+    }
 
     // Atualiza dados base
     const jornada = await app.db.jornada.update({
@@ -216,6 +251,19 @@ export async function m1Router(app: FastifyInstance) {
           computa_jornada: p.computa_jornada,
           janela_inicio_min: p.janela_inicio_min ?? null,
           janela_fim_min: p.janela_fim_min ?? null,
+        })),
+      })
+    }
+
+    // Substitui horários por dia (delete + recreate)
+    await app.db.jornadaHorario.deleteMany({ where: { jornada_id: id } })
+    if (horarios.length > 0) {
+      await app.db.jornadaHorario.createMany({
+        data: horarios.map((h) => ({
+          jornada_id: id,
+          dia_semana: h.dia_semana,
+          hora_inicio: h.hora_inicio,
+          hora_fim: h.hora_fim,
         })),
       })
     }
