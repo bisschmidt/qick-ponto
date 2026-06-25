@@ -200,9 +200,22 @@ model Colaborador {
   centro_custo     String @db.VarChar(100)
   operacao_cliente String @db.VarChar(100)
 
-  // Campos opcionais
+  // Campos opcionais — identidade
   email_corporativo String? @db.VarChar(255)
   whatsapp          String? @db.VarChar(20)
+  nome_social       String? @db.VarChar(100)
+  usar_nome_social  Boolean @default(false)
+
+  // Campos profissionais (BPO)
+  cargo              String? @db.VarChar(100)
+  time_nome          String? @db.VarChar(100)
+  departamento       String? @db.VarChar(100)
+
+  // Configurações de marcação por colaborador
+  validacao_facial   Boolean @default(true)
+  canal_app          Boolean @default(true)
+  canal_quiosque     Boolean @default(true)
+  canal_computador   Boolean @default(false)
 
   ativo              Boolean  @default(true)
   data_desligamento  DateTime? @db.Date

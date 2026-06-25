@@ -2,7 +2,6 @@
 
 import { api, ApiError } from '@/lib/api'
 import { requireSession } from '@/lib/session'
-import { redirect } from 'next/navigation'
 
 type State = { ok: true } | { ok: false; error: string } | undefined
 
@@ -43,34 +42,55 @@ export async function salvarCodigoFolhaAction(input: {
   }
 }
 
-export async function editarColaboradorAction(_prev: State, formData: FormData): Promise<State> {
+// Salva os campos de Detalhes (pessoais + profissionais) sem sair da aba.
+// CPF, PIS, matrícula e CNPJ de lotação NÃO entram aqui — são imutáveis pela ficha
+// (impacto direto em AFD/AEJ); alteração desses exige fluxo de correção dedicado.
+export async function salvarPerfilAction(input: {
+  id: string
+  nome_completo?: string
+  nome_social?: string
+  usar_nome_social?: boolean
+  email_corporativo?: string
+  whatsapp?: string
+  centro_custo?: string
+  operacao_cliente?: string
+  cargo?: string
+  time_nome?: string
+  departamento?: string
+  nova_jornada_id?: string
+}): Promise<State> {
   const session = await requireSession()
-  const id = formData.get('id') as string
-
-  const nova_jornada_id = formData.get('nova_jornada_id') as string | null
-
-  const body: Record<string, string | undefined> = {
-    nome_completo:    (formData.get('nome_completo') as string) || undefined,
-    email_corporativo:(formData.get('email_corporativo') as string) || undefined,
-    whatsapp:         (formData.get('whatsapp') as string) || undefined,
-    centro_custo:     (formData.get('centro_custo') as string) || undefined,
-    operacao_cliente: (formData.get('operacao_cliente') as string) || undefined,
-    ...(nova_jornada_id ? { nova_jornada_id } : {}),
-  }
-
-  // remove undefined values
+  const { id, ...rest } = input
   const payload = Object.fromEntries(
-    Object.entries(body).filter(([, v]) => v !== undefined),
+    Object.entries(rest).filter(([, v]) => v !== undefined && v !== ''),
   )
-
   try {
     await api.patch(`/v1/colaboradores/${id}`, payload, session.token)
+    return { ok: true }
   } catch (err) {
     if (err instanceof ApiError) return { ok: false, error: err.message }
     return { ok: false, error: 'Erro ao salvar' }
   }
+}
 
-  redirect('/dashboard/colaboradores')
+// Salva canais de marcação + validação facial (aba Configurações).
+export async function salvarConfigMarcacaoAction(
+  id: string,
+  config: {
+    validacao_facial?: boolean
+    canal_app?: boolean
+    canal_quiosque?: boolean
+    canal_computador?: boolean
+  },
+): Promise<State> {
+  const session = await requireSession()
+  try {
+    await api.patch(`/v1/colaboradores/${id}/config-marcacao`, config, session.token)
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Erro ao salvar configuração' }
+  }
 }
 
 export async function definirSenhaAction(_prev: State, formData: FormData): Promise<State> {

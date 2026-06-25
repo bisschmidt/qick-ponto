@@ -49,6 +49,36 @@ export function m1Repository(db: PrismaClient) {
           },
           aceite_lgpd: true,
           codigos_folha: true,
+          cnpj_estab: { select: { id: true, cnpj: true, razao_social: true, uf: true } },
+          usuario: { select: { perfil: true } },
+        },
+      })
+    },
+
+    findMarcacoesByColaborador(tenantId: string, colaboradorId: string, limite: number) {
+      return db.marcacao.findMany({
+        where: { tenant_id: tenantId, colaborador_id: colaboradorId },
+        orderBy: { timestamp_marcacao: 'desc' },
+        take: limite,
+        select: {
+          id: true,
+          nsr: true,
+          tipo: true,
+          canal: true,
+          timestamp_marcacao: true,
+          fora_da_area: true,
+          fora_da_janela: true,
+          ajustes: {
+            select: {
+              id: true,
+              tipo_ajuste: true,
+              status: true,
+              justificativa: true,
+              novo_timestamp: true,
+              novo_tipo: true,
+              created_at: true,
+            },
+          },
         },
       })
     },

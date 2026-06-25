@@ -5,6 +5,7 @@ import { m1Service } from './service.js'
 import {
   criarColaboradorSchema,
   editarColaboradorSchema,
+  configMarcacaoSchema,
   criarJornadaSchema,
   criarActSchema,
 } from './schema.js'
@@ -54,6 +55,26 @@ export async function m1Router(app: FastifyInstance) {
       input,
     )
     return reply.send(colaborador)
+  })
+
+  // Configurações de marcação por colaborador (canais + validação facial)
+  app.patch('/colaboradores/:id/config-marcacao', authAdmin, async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const input = configMarcacaoSchema.parse(req.body)
+    const colaborador = await service.configurarMarcacao(req.jwtPayload.tenantId, id, input)
+    return reply.send(colaborador)
+  })
+
+  // Histórico bruto de marcações (com NSR/canal; ajustes vêm como eventos separados)
+  app.get('/colaboradores/:id/marcacoes', authGestor, async (req) => {
+    const { id } = req.params as { id: string }
+    return service.historicoMarcacoes(req.jwtPayload.tenantId, id)
+  })
+
+  // Dispositivos/canais usados pelo colaborador (apoio antifraude)
+  app.get('/colaboradores/:id/dispositivos', authGestor, async (req) => {
+    const { id } = req.params as { id: string }
+    return service.dispositivosColaborador(req.jwtPayload.tenantId, id)
   })
 
   // Definir/redefinir senha do colaborador (admin)

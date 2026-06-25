@@ -74,14 +74,30 @@ export const criarActSchema = z.object({
 
 export const editarColaboradorSchema = z.object({
   nome_completo:    z.string().min(3).max(100).regex(/^[A-Za-zÀ-ÿ\s]+$/).optional(),
+  // Nome social NÃO restringe caracteres do nome civil (pode conter acento/hífen/espaço);
+  // continua só para EXIBIÇÃO — nome civil é o usado em AFD/AEJ e documentos legais.
+  nome_social:      z.string().max(100).optional(),
+  usar_nome_social: z.boolean().optional(),
   email_corporativo: z.string().email().optional(),
   whatsapp:         z.string().max(20).optional(),
   centro_custo:     z.string().min(1).max(100).optional(),
   operacao_cliente: z.string().min(1).max(100).optional(),
+  cargo:            z.string().max(100).optional(),
+  time_nome:        z.string().max(100).optional(),
+  departamento:     z.string().max(100).optional(),
   nova_jornada_id:  z.string().uuid().optional(), // cria novo ColaboradorJornada se informado
+})
+
+// Configurações de marcação por colaborador (aba "Configurações")
+export const configMarcacaoSchema = z.object({
+  validacao_facial: z.boolean().optional(),
+  canal_app:        z.boolean().optional(),
+  canal_quiosque:   z.boolean().optional(),
+  canal_computador: z.boolean().optional(),
 })
 
 export type CriarColaboradorInput = z.infer<typeof criarColaboradorSchema>
 export type EditarColaboradorInput = z.infer<typeof editarColaboradorSchema>
+export type ConfigMarcacaoInput = z.infer<typeof configMarcacaoSchema>
 export type CriarJornadaInput = z.infer<typeof criarJornadaSchema>
 export type CriarActInput = z.infer<typeof criarActSchema>

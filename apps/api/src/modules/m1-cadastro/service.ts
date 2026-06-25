@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import type { M1Repository } from './repository.js'
-import type { CriarColaboradorInput, EditarColaboradorInput, CriarJornadaInput, CriarActInput } from './schema.js'
+import type { CriarColaboradorInput, EditarColaboradorInput, CriarJornadaInput, CriarActInput, ConfigMarcacaoInput } from './schema.js'
 import { validarJornadaNR17 } from './validacoes-nr17.js'
 import { hashSenha } from '../auth/router.js'
 import { enviarEmailOnboarding } from '../../plugins/mailer.js'
@@ -82,10 +82,15 @@ export function m1Service(repo: M1Repository) {
 
       const atualizado = await repo.updateColaborador(colaboradorId, {
         ...(input.nome_completo    ? { nome_completo: input.nome_completo }       : {}),
+        ...(input.nome_social      !== undefined ? { nome_social: input.nome_social || null }              : {}),
+        ...(input.usar_nome_social !== undefined ? { usar_nome_social: input.usar_nome_social }            : {}),
         ...(input.email_corporativo !== undefined ? { email_corporativo: input.email_corporativo ?? null } : {}),
         ...(input.whatsapp         !== undefined ? { whatsapp: input.whatsapp ?? null }                   : {}),
         ...(input.centro_custo     ? { centro_custo: input.centro_custo }         : {}),
         ...(input.operacao_cliente ? { operacao_cliente: input.operacao_cliente } : {}),
+        ...(input.cargo            !== undefined ? { cargo: input.cargo || null }                : {}),
+        ...(input.time_nome        !== undefined ? { time_nome: input.time_nome || null }        : {}),
+        ...(input.departamento     !== undefined ? { departamento: input.departamento || null }  : {}),
       })
 
       if (input.nova_jornada_id) {
@@ -116,6 +121,54 @@ export function m1Service(repo: M1Repository) {
         throw { statusCode: 404, message: 'Colaborador não encontrado' }
       }
       return colaborador
+    },
+
+    // Configurações de marcação por colaborador (aba "Configurações")
+    async configurarMarcacao(tenantId: string, colaboradorId: string, input: ConfigMarcacaoInput) {
+      const colaborador = await repo.findColaboradorById(tenantId, colaboradorId)
+      if (!colaborador) throw { statusCode: 404, message: 'Colaborador não encontrado' }
+
+      return repo.updateColaborador(colaboradorId, {
+        ...(input.validacao_facial !== undefined ? { validacao_facial: input.validacao_facial } : {}),
+        ...(input.canal_app        !== undefined ? { canal_app: input.canal_app }               : {}),
+        ...(input.canal_quiosque   !== undefined ? { canal_quiosque: input.canal_quiosque }     : {}),
+        ...(input.canal_computador !== undefined ? { canal_computador: input.canal_computador } : {}),
+      })
+    },
+
+    // Histórico bruto de marcações do colaborador (imutável; ajustes vêm como eventos separados).
+    async historicoMarcacoes(tenantId: string, colaboradorId: string, limite = 200) {
+      const colaborador = await repo.findColaboradorById(tenantId, colaboradorId)
+      if (!colaborador) throw { statusCode: 404, message: 'Colaborador não encontrado' }
+      return repo.findMarcacoesByColaborador(tenantId, colaboradorId, limite)
+    },
+
+    // Dispositivos/canais a partir dos quais o colaborador registrou ponto (apoio antifraude).
+    // Não há fingerprint de hardware — agrupamos por canal e sinalizamos marcações fora da área.
+    async dispositivosColaborador(tenantId: string, colaboradorId: string) {
+      const colaborador = await repo.findColaboradorById(tenantId, colaboradorId)
+      if (!colaborador) throw { statusCode: 404, message: 'Colaborador não encontrado' }
+      const marcacoes = await repo.findMarcacoesByColaborador(tenantId, colaboradorId, 1000)
+
+      const porCanal = new Map<string, { canal: string; total: number; primeiro: Date; ultimo: Date; foraDaArea: number }>()
+      for (const m of marcacoes) {
+        const atual = porCanal.get(m.canal)
+        if (!atual) {
+          porCanal.set(m.canal, {
+            canal: m.canal,
+            total: 1,
+            primeiro: m.timestamp_marcacao,
+            ultimo: m.timestamp_marcacao,
+            foraDaArea: m.fora_da_area ? 1 : 0,
+          })
+        } else {
+          atual.total++
+          if (m.timestamp_marcacao < atual.primeiro) atual.primeiro = m.timestamp_marcacao
+          if (m.timestamp_marcacao > atual.ultimo) atual.ultimo = m.timestamp_marcacao
+          if (m.fora_da_area) atual.foraDaArea++
+        }
+      }
+      return Array.from(porCanal.values()).sort((a, b) => b.ultimo.getTime() - a.ultimo.getTime())
     },
 
     async definirSenha(tenantId: string, colaboradorId: string, senha: string) {
