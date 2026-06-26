@@ -76,7 +76,7 @@ export default async function PeriodosPage() {
                         {p.fechado && (
                           <Link
                             href={`/dashboard/periodos/detalhe?id=${p.id}`}
-                            className="text-blue-600 hover:underline text-xs"
+                            className="text-gray-900 hover:underline text-xs"
                           >
                             Ver espelhos
                           </Link>

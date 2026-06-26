@@ -27,7 +27,7 @@ export function AjusteAcoes({ ajusteId, status, role }: Props) {
           {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
           Aprovar
         </Button>
-        <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => aprovar(true)} disabled={isPending}>
+        <Button size="sm" variant="outline" className="text-gray-900 border-gray-300 hover:bg-gray-100" onClick={() => aprovar(true)} disabled={isPending}>
           → RH
         </Button>
         <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={reprovar} disabled={isPending}>

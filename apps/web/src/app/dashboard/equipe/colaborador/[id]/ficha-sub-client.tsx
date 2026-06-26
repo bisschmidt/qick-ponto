@@ -208,7 +208,7 @@ export function FichaSubordinadoClient({ ficha, motivos }: { ficha: Ficha; motiv
                   ? 'bg-amber-50 hover:bg-amber-100'
                   : d.ehDsr || d.ehFeriado
                     ? 'bg-gray-50/50 text-gray-400 hover:bg-gray-100'
-                    : 'hover:bg-blue-50'
+                    : 'hover:bg-gray-100'
                 return (
                   <tr key={d.data}
                     onClick={() => abrirDia(d)}
@@ -222,7 +222,7 @@ export function FichaSubordinadoClient({ ficha, motivos }: { ficha: Ficha; motiv
                       return (
                         <td key={i} className="py-2.5 text-center border-l border-gray-100 px-1">
                           {m
-                            ? <span className="font-mono text-xs text-blue-700 whitespace-nowrap">{hora(m.hora)}</span>
+                            ? <span className="font-mono text-xs text-black whitespace-nowrap">{hora(m.hora)}</span>
                             : <span className={`text-xs ${col.group === 'Intervalo' ? 'text-orange-200' : 'text-gray-200'}`}>—</span>
                           }
                         </td>
@@ -365,12 +365,12 @@ function ModalAprovarAjuste({
                   <div className="flex items-center gap-2">
                     {ajusteAtivo.tipo_ajuste === 'ATESTADO'
                       ? <FileText className="h-4 w-4 text-green-600" />
-                      : <Edit3 className="h-4 w-4 text-blue-600" />
+                      : <Edit3 className="h-4 w-4 text-gray-900" />
                     }
                     <span className="font-medium text-sm text-gray-800">{ajusteAtivo.motivo}</span>
                   </div>
                   {ajusteAtivo.novo_tipo && ajusteAtivo.novo_timestamp && (
-                    <p className="text-xs text-blue-800 bg-blue-50 rounded px-2 py-1">
+                    <p className="text-xs text-black bg-gray-100 rounded px-2 py-1">
                       Pedido: <strong>{TIPO_LABEL[ajusteAtivo.novo_tipo] ?? ajusteAtivo.novo_tipo}</strong> às <strong>{hora(ajusteAtivo.novo_timestamp)}</strong>
                     </p>
                   )}
@@ -424,7 +424,7 @@ function ModalAprovarAjuste({
               <div className="pt-2 border-t">
                 <button
                   onClick={onCriarNovo}
-                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                  className="flex items-center gap-1 text-xs text-gray-900 hover:text-black"
                 >
                   <Plus className="h-3 w-3" /> Registrar novo ajuste neste dia
                 </button>

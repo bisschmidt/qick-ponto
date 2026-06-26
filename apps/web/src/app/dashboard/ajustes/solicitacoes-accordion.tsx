@@ -73,7 +73,7 @@ function GrupoColaborador({ grupo, role }: { grupo: Grupo; role: string }) {
             <Link
               href={`/dashboard/equipe/colaborador/${grupo.colab.id}${mes ? `?mes=${mes}` : ''}`}
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+              className="flex items-center gap-1 text-xs text-gray-900 hover:text-black hover:underline"
             >
               Ver ficha <ExternalLink className="h-3 w-3" />
             </Link>
@@ -92,14 +92,14 @@ function GrupoColaborador({ grupo, role }: { grupo: Grupo; role: string }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         {a.tipo_ajuste === 'ATESTADO'
                           ? <FileText className="h-4 w-4 text-green-600 shrink-0" />
-                          : <Edit3 className="h-4 w-4 text-blue-600 shrink-0" />
+                          : <Edit3 className="h-4 w-4 text-gray-900 shrink-0" />
                         }
                         <Badge variant={s.variant}>{s.label}</Badge>
                         <span className="text-xs text-gray-400 font-mono">{fmtDataCurta(a.data_ponto)}</span>
                       </div>
                       <p className="text-sm text-gray-700 font-medium">{a.motivo.descricao}</p>
                       {a.novo_tipo && a.novo_timestamp && (
-                        <p className="text-xs bg-blue-50 text-blue-800 rounded px-2 py-1 inline-block">
+                        <p className="text-xs bg-gray-100 text-black rounded px-2 py-1 inline-block">
                           Pedido: <strong>{TIPO_LABEL[a.novo_tipo] ?? a.novo_tipo}</strong> às <strong>{horaDeIso(a.novo_timestamp)}</strong>
                         </p>
                       )}

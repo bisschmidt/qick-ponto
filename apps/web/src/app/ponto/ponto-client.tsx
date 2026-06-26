@@ -9,11 +9,11 @@ const TIPO_LABELS: Record<string, { label: string; cor: string }> = {
   ENTRADA:                  { label: 'Registrar Entrada',          cor: 'bg-green-500 hover:bg-green-600' },
   SAIDA:                    { label: 'Registrar Saída',             cor: 'bg-red-500 hover:bg-red-600' },
   SAIDA_INTERVALO:          { label: 'Saída para Intervalo',        cor: 'bg-orange-500 hover:bg-orange-600' },
-  RETORNO_INTERVALO:        { label: 'Retorno do Intervalo',        cor: 'bg-blue-500 hover:bg-blue-600' },
+  RETORNO_INTERVALO:        { label: 'Retorno do Intervalo',        cor: 'bg-gray-700 hover:bg-gray-900' },
   SAIDA_PAUSA_NR17:         { label: 'Saída Pausa NR-17',           cor: 'bg-yellow-500 hover:bg-yellow-600' },
-  RETORNO_PAUSA_NR17:       { label: 'Retorno Pausa NR-17',         cor: 'bg-blue-500 hover:bg-blue-600' },
+  RETORNO_PAUSA_NR17:       { label: 'Retorno Pausa NR-17',         cor: 'bg-gray-700 hover:bg-gray-900' },
   SAIDA_PAUSA_FISIOLOGICA:  { label: 'Saída Pausa Fisiológica',     cor: 'bg-purple-500 hover:bg-purple-600' },
-  RETORNO_PAUSA_FISIOLOGICA:{ label: 'Retorno Pausa Fisiológica',   cor: 'bg-blue-500 hover:bg-blue-600' },
+  RETORNO_PAUSA_FISIOLOGICA:{ label: 'Retorno Pausa Fisiológica',   cor: 'bg-gray-700 hover:bg-gray-900' },
 }
 
 interface ProximoEvento {
@@ -90,7 +90,7 @@ export function PontoClient({ nomeColaborador, proximoEvento, temHeHoje }: Props
   }
 
   const tipo = eventoAtual?.proximoTipo ?? 'ENTRADA'
-  const btnInfo = TIPO_LABELS[tipo] ?? { label: 'Registrar Ponto', cor: 'bg-blue-500 hover:bg-blue-600' }
+  const btnInfo = TIPO_LABELS[tipo] ?? { label: 'Registrar Ponto', cor: 'bg-gray-700 hover:bg-gray-900' }
 
   return (
     <div className="w-full max-w-sm space-y-4">

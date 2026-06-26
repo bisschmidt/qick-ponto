@@ -39,9 +39,10 @@ export default async function OnboardingPage({
   return (
     <div className="min-h-screen bg-gray-50 flex items-start justify-center p-4 pt-12">
       <div className="w-full max-w-lg space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Qick Ponto</h1>
-          <p className="text-gray-500 text-sm mt-1">Bem-vindo(a)! Configure seu acesso abaixo.</p>
+        <div className="flex flex-col items-center text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/qickponto-logo.svg" alt="Qick Ponto" className="h-9 w-auto" />
+          <p className="text-gray-500 text-sm mt-3">Bem-vindo(a)! Configure seu acesso abaixo.</p>
         </div>
         <OnboardingForm token={token} nome={result.nome} />
       </div>

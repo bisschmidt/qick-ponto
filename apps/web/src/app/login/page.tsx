@@ -7,11 +7,12 @@ export default async function LoginPage() {
   if (session) redirect('/')
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Qick Ponto</h1>
-          <p className="text-gray-500 mt-1">Sistema de ponto eletrônico REP-P</p>
+        <div className="flex flex-col items-center text-center mb-8">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/qickponto-logo.svg" alt="Qick Ponto" className="h-10 w-auto" />
+          <p className="text-gray-500 mt-3">Sistema de ponto eletrônico REP-P</p>
         </div>
         <LoginForm />
       </div>

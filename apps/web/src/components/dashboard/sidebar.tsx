@@ -56,8 +56,9 @@ export function Sidebar({ role, nome }: Props) {
   return (
     <aside className="w-60 bg-white border-r flex flex-col shrink-0">
       <div className="p-5 border-b">
-        <h1 className="text-xl font-bold text-blue-600">Qick Ponto</h1>
-        <p className="text-xs text-gray-400 mt-0.5">REP-P</p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/qickponto-logo.svg" alt="Qick Ponto" className="h-7 w-auto" />
+        <p className="text-xs text-gray-400 mt-1.5">REP-P</p>
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
@@ -71,7 +72,7 @@ export function Sidebar({ role, nome }: Props) {
               href={target}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                active ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+                active ? 'bg-gray-100 text-black' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -83,7 +84,7 @@ export function Sidebar({ role, nome }: Props) {
 
       <div className="p-3 border-t">
         <div className="flex items-center gap-3 px-3 py-2 mb-1">
-          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm">
+          <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-black font-semibold text-sm">
             {nome.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">

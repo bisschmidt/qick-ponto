@@ -111,7 +111,7 @@ export function HeClient({ time, membros }: { time: HeTime; membros: Membro[] })
       {/* Métricas */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         <Stat label="Aguard. aceite" valor={totais.aceite} color="text-amber-600" />
-        <Stat label="A marcar"       valor={totais.marcacao} color="text-blue-600" />
+        <Stat label="A marcar"       valor={totais.marcacao} color="text-gray-900" />
         <Stat label="Realizadas"     valor={totais.realizadas} color="text-green-600" />
         <Stat label="Falta HE"       valor={totais.falta} color="text-gray-500" />
         <Stat label="Compensações"   valor={totais.compensacoes} color="text-purple-600" />
@@ -213,7 +213,7 @@ function ModalLancarCompensacao({ membros, onClose }: { membros: Membro[]; onClo
           <CardContent className="p-0">
             <div className="flex items-center justify-between p-4 border-b">
               <div className="flex items-center gap-2">
-                <CalendarClock className="h-5 w-5 text-blue-600" />
+                <CalendarClock className="h-5 w-5 text-gray-900" />
                 <p className="font-semibold text-gray-900">Lançar Compensação de Falta</p>
               </div>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
@@ -247,18 +247,18 @@ function ModalLancarCompensacao({ membros, onClose }: { membros: Membro[]; onClo
 
               {info && info.eh_dia_escala && (
                 <>
-                  <div className={`rounded-md border p-2.5 text-sm ${cobre ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'}`}>
+                  <div className={`rounded-md border p-2.5 text-sm ${cobre ? 'border-green-200 bg-green-50' : 'border-gray-300 bg-gray-100'}`}>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-600">Jornada a compensar</span>
                       <span className="font-semibold text-gray-900">{cFmt(alvo)}</span>
                     </div>
                     <div className="flex items-center justify-between mt-1">
                       <span className="text-gray-600">Distribuído nos dias</span>
-                      <span className={`font-semibold ${cobre ? 'text-green-700' : 'text-blue-700'}`}>{cFmt(total)}</span>
+                      <span className={`font-semibold ${cobre ? 'text-green-700' : 'text-black'}`}>{cFmt(total)}</span>
                     </div>
                     {cobre
                       ? <p className="mt-1.5 text-xs text-green-700 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Cobertura completa</p>
-                      : <p className="mt-1.5 text-xs text-blue-700">Faltam <b>{cFmt(faltam)}</b>{faltam > 0 ? ` — cerca de ${Math.ceil(faltam / limite)} dia(s) de ${cFmt(limite)}` : ''}.</p>}
+                      : <p className="mt-1.5 text-xs text-black">Faltam <b>{cFmt(faltam)}</b>{faltam > 0 ? ` — cerca de ${Math.ceil(faltam / limite)} dia(s) de ${cFmt(limite)}` : ''}.</p>}
                   </div>
 
                   <div className="space-y-2">
@@ -286,7 +286,7 @@ function ModalLancarCompensacao({ membros, onClose }: { membros: Membro[]; onClo
                       )
                     })}
                     <button onClick={() => setSlots((s) => [...s, { data: '', hora_inicio: '18:00', hora_fim: cAddMin('18:00', limite) }])}
-                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
+                      className="flex items-center gap-1 text-xs text-gray-900 hover:text-black">
                       <Plus className="h-3 w-3" /> Adicionar dia
                     </button>
                   </div>
@@ -380,7 +380,7 @@ function HeRow({ h, editavel }: { h: HeView; editavel: boolean }) {
         {editavel && (
           <td className="px-3 py-2.5 text-right whitespace-nowrap">
             <button onClick={() => setAjustar(true)} disabled={pending}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium mr-3">Ajustar</button>
+              className="text-xs text-gray-900 hover:text-black font-medium mr-3">Ajustar</button>
             <button onClick={cancelar} disabled={pending}
               className="text-xs text-red-600 hover:text-red-800 font-medium">
               {pending ? '…' : 'Cancelar'}
@@ -578,7 +578,7 @@ function ModalLancarHe({ membros, onClose }: { membros: Membro[]; onClose: () =>
           <CardContent className="p-0">
             <div className="flex items-center justify-between p-4 border-b">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-blue-600" />
+                <TrendingUp className="h-5 w-5 text-gray-900" />
                 <p className="font-semibold text-gray-900">Lançar Hora Extra</p>
               </div>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
@@ -640,7 +640,7 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   return (
     <button onClick={onClick}
       className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
-        active ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+        active ? 'border-gray-900 text-black' : 'border-transparent text-gray-500 hover:text-gray-700'
       }`}>
       {children}
     </button>

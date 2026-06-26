@@ -27,7 +27,7 @@ export function PontoTabs() {
               className={cn(
                 'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
                 active
-                  ? 'border-blue-600 text-blue-700'
+                  ? 'border-gray-900 text-black'
                   : 'border-transparent text-gray-500 hover:text-gray-700',
               )}
             >

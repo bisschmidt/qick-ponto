@@ -24,7 +24,7 @@ export default async function ExportacoesPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-lg bg-gray-100 text-gray-900 flex items-center justify-center">
                 <FileText className="h-5 w-5" />
               </div>
               <div>

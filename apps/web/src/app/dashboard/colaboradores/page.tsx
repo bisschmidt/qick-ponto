@@ -79,7 +79,7 @@ export default async function ColaboradoresPage() {
                     <td className="px-4 py-3 text-right">
                       <Link
                         href={`/dashboard/colaboradores/editar?id=${c.id}`}
-                        className="text-blue-600 hover:underline text-xs"
+                        className="text-gray-900 hover:underline text-xs"
                       >
                         Editar
                       </Link>

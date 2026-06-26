@@ -8,11 +8,15 @@ export default async function PontoLayout({ children }: { children: React.ReactN
   const session = await requireSession()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="flex items-center justify-between p-4 bg-white/80 backdrop-blur border-b">
-        <div>
-          <p className="font-semibold text-gray-900">{session.nome}</p>
-          <p className="text-xs text-gray-500 uppercase tracking-wide">{session.role.replace('_', ' ')}</p>
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/qickponto-logo.svg" alt="Qick Ponto" className="h-6 w-auto" />
+          <div className="border-l pl-3">
+            <p className="font-semibold text-gray-900 leading-tight">{session.nome}</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wide">{session.role.replace('_', ' ')}</p>
+          </div>
         </div>
         <form action={logoutAction}>
           <Button variant="ghost" size="icon" type="submit" title="Sair">

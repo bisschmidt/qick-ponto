@@ -55,7 +55,7 @@ export default async function MeusEspelhosPage() {
                   <a
                     href={`/api/espelho?id=${e.id}`}
                     target="_blank"
-                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                    className="flex items-center gap-1 text-gray-900 hover:text-black text-sm font-medium"
                   >
                     <Download className="h-4 w-4" />
                     PDF

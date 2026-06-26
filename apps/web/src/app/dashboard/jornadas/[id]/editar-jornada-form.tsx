@@ -145,7 +145,7 @@ export function EditarJornadaForm({ jornada, userRole }: { jornada: Jornada; use
                   type="button"
                   onClick={() => toggleDia(i)}
                   disabled={!podeEditar}
-                  className={`px-3 py-1.5 rounded-md text-sm border ${dias.includes(i) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600'} disabled:opacity-60`}
+                  className={`px-3 py-1.5 rounded-md text-sm border ${dias.includes(i) ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600'} disabled:opacity-60`}
                 >{dia}</button>
               ))}
             </div>
