@@ -2,6 +2,8 @@
 // Regra: ±5 min por marcação, máximo 10 min/dia.
 // Quando o atraso EXCEDE a tolerância, conta-se o período INTEGRAL (não só o excedente).
 
+import { BRT_TO_UTC } from './timezone.js'
+
 export interface ResultadoTolerancia {
   minutosAtraso: number
   minutosSaidaAntecipada: number
@@ -10,12 +12,10 @@ export interface ResultadoTolerancia {
   saidaEfetiva: Date
 }
 
-// Horários de jornada são em BRT (UTC-3, sem DST desde Decreto 9.772/2019).
+// Horários de jornada são horário-parede BRT (ver engine/timezone.ts).
 // 'dia' é sempre meia-noite UTC (ex.: 2026-04-28T00:00:00Z).
-// Somar 3h converte BRT→UTC:  08:40 BRT = setUTCHours(11,40) = 11:40 UTC.
+// Somar BRT_TO_UTC converte BRT→UTC:  08:40 BRT = setUTCHours(11,40) = 11:40 UTC.
 // O overflow é tratado pelo JS: 22:00 BRT = setUTCHours(25,0) → 01:00 UTC próximo dia.
-const BRT_TO_UTC = 3
-
 export function horarioParaDate(dia: Date, horario: string): Date {
   const [h, m] = horario.split(':').map(Number)
   if (h === undefined || m === undefined) throw new Error(`Horário inválido: ${horario}`)

@@ -1,7 +1,9 @@
 // Adicional noturno — M4.4 + Art. 73 CLT
-// Período: 22h–5h
+// Período: 22h–5h (horário-parede BRT — as marcações são instantes UTC, ver timezone.ts)
 // Hora reduzida: 52 minutos e 30 segundos contam como 1 hora (fator 60/52.5)
 // Adicional mínimo: 20% sobre a hora diurna
+
+import { utcParaHoraBrt } from './timezone.js'
 
 const INICIO_NOTURNO_H = 22
 const FIM_NOTURNO_H = 5
@@ -26,8 +28,8 @@ export function calcularMinutosNoturnos(inicio: Date, fim: Date): ResultadoNotur
   // Para jornadas longas isso pode ser otimizado com cálculo analítico,
   // mas para jornadas de até 24h o custo é aceitável (< 1440 iterações)
   while (cursor < fim) {
-    const hora = cursor.getUTCHours()
-    if (hora >= INICIO_NOTURNO_H || hora < FIM_NOTURNO_H) {
+    const horaBrt = utcParaHoraBrt(cursor)
+    if (horaBrt >= INICIO_NOTURNO_H || horaBrt < FIM_NOTURNO_H) {
       minutosNoturnos++
     }
     cursor.setUTCMinutes(cursor.getUTCMinutes() + 1)

@@ -96,10 +96,11 @@ export function calcularDia(entrada: EntradaApuracao): DiaApurado {
   const minutosTrabalhados = Math.max(0, totalBrutoMin - minutosDescontados)
 
   // ── 6. Horas extras ──────────────────────────────────────────────────────
-  // HE é o tempo trabalhado APÓS hora_fim (base relógio, não horas líquidas).
-  // Isso evita inconsistência com descontos de pausa no cálculo de excedente.
+  // Dia normal (modelo A): HE = tempo trabalhado APÓS hora_fim (base relógio,
+  // não horas líquidas) — evita inconsistência com descontos de pausa.
+  // Feriado/DSR não compensado: Súmula 146 TST manda pagar TODO o tempo
+  // trabalhado em dobro (100%) — inclusive a hora extra. Não há HE50 nesses dias.
 
-  const minutosContratados = entrada.jornada.duracaoMinutos
   const minutosHeAposFim = Math.max(
     0,
     Math.floor((tol.saidaEfetiva.getTime() - horaFimContratual.getTime()) / 60000),
@@ -108,12 +109,10 @@ export function calcularDia(entrada: EntradaApuracao): DiaApurado {
   let minutosHe50 = 0
   let minutosHe100 = 0
 
-  if (minutosHeAposFim > 0) {
-    if (entrada.ehFeriado || entrada.ehDsr) {
-      minutosHe100 = minutosHeAposFim
-    } else {
-      minutosHe50 = minutosHeAposFim
-    }
+  if (entrada.ehFeriado || entrada.ehDsr) {
+    minutosHe100 = minutosTrabalhados
+  } else if (minutosHeAposFim > 0) {
+    minutosHe50 = minutosHeAposFim
   }
 
   // ── 7. Adicional noturno ──────────────────────────────────────────────────
@@ -141,7 +140,7 @@ export function calcularDia(entrada: EntradaApuracao): DiaApurado {
   let status: DiaApurado['status']
 
   if (entrada.ehFeriado) {
-    status = minutosHeAposFim > 0 ? 'FERIADO' : 'FERIADO'
+    status = 'FERIADO'
   } else if (entrada.ehDsr) {
     status = 'DSR'
   } else {
